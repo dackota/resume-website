@@ -1,0 +1,89 @@
+name: Renovate
+
+# Scheduled self-hosted Renovate runner (see renovate.json at the repo root
+# for the base config). Mints a short-lived GitHub App (dk-renovate-bot)
+# installation token so Renovate's commits/PRs are attributed to the App —
+# not GITHUB_TOKEN — consistent with how release-please.yml authenticates in
+# this repo. That attribution is load-bearing here, not cosmetic: a
+# GITHUB_TOKEN-authored PR does not trigger downstream workflows (GitHub's
+# anti-recursion rule), so ci.yml would never run on Renovate's own PRs.
+#
+# What this actually keeps current in this repo:
+#   - the digest-pinned nginx base image in the Dockerfile (dockerfile
+#     manager) — the update that matters most, because publish.yml fails a
+#     release outright on any HIGH/CRITICAL Grype finding, and a stale base
+#     image is the usual cause (it killed the v0.1.0 release);
+#   - the SHA-pinned actions across .github/workflows (github-actions
+#     manager).
+# renovate.json maps those to different commit types so the first cuts a
+# release and the second doesn't — see the packageRules there.
+#
+# Hardening:
+#   - every `uses:` is pinned to a full commit SHA (trailing comment records
+#     the version tag);
+#   - permissions default to `contents: read` — Renovate authenticates against
+#     GitHub with the minted App token, so the workflow's own GITHUB_TOKEN
+#     never needs write access;
+#   - RENOVATE_REPOSITORIES pins the run to this repo only, so the (shared)
+#     App installation on other repos in this account can't leak into this
+#     schedule.
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Same preflight as release-please.yml: without the App secrets the
+      # token step fails with an opaque error, and on a daily cron that is
+      # easy to misread as Renovate itself being broken.
+      - name: Preflight — required App secrets are present
+        env:
+          CI_APP_ID: ${{ secrets.CI_APP_ID }}
+          CI_APP_PRIVATE_KEY: ${{ secrets.CI_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -n "${CI_APP_ID:-}" ] || missing="${missing} CI_APP_ID"
+          [ -n "${CI_APP_PRIVATE_KEY:-}" ] || missing="${missing} CI_APP_PRIVATE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):${missing}. Add them under Settings -> Secrets and variables -> Actions, using the same dk-renovate-bot App credentials as dackota/generic-app-chart, and confirm that App is installed on this repository."
+            exit 1
+          fi
+          echo "App secrets present."
+
+      - name: Generate a token for the dk-renovate-bot App
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.CI_APP_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+          # Scoped to exactly what Renovate needs (least privilege): contents +
+          # pull-requests to open update PRs, issues for the Dependency
+          # Dashboard, workflows because the github-actions manager pushes
+          # commits touching .github/workflows/* (a scope GitHub requires
+          # separately from contents).
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+          permission-workflows: write
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@3064367f740a1a91cca218698a63902689cce200 # v46.1.20
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # Attribute Renovate's commits/PRs to the App bot instead of the
+          # action's default "renovate-bot" identity. The email must use the
+          # App bot's numeric user id (resolved via
+          # `gh api users/dk-renovate-bot%5Bbot%5D`) for GitHub to recognize
+          # it as a real account and render the App's avatar on the commit.
+          RENOVATE_GIT_AUTHOR: "dk-renovate-bot[bot] <300303047+dk-renovate-bot[bot]@users.noreply.github.com>"
+        with:
+          token: ${{ steps.app-token.outputs.token }}

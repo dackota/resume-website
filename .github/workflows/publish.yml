@@ -1,0 +1,130 @@
+name: Publish
+
+# Builds and publishes the multi-arch container image to ghcr.io once
+# release-please (release-please.yml) has cut an actual release — i.e. merged
+# the release PR and tagged the repo. This workflow does not run on every
+# push to main (release-please.yml owns that trigger); it reacts only to the
+# release tag itself, so it never races a tag that hasn't been created yet
+# and never repeats work on a push that isn't a release.
+#
+# - Image -> ghcr.io/<owner>/resume-website, tagged <version> (tag minus the
+#   leading v), latest, and sha-<commit>. The version comes straight from the
+#   tag that triggered the run — the tag IS the version being released.
+# - Renovate in the gitops repo (free-tier-oracle-cloud-k8s) tracks the
+#   version tag via its helm-values manager, so a release here rolls out via
+#   an ordinary Renovate PR there.
+#
+# Supply-chain hardening (same conventions as consulting-spa and
+# change-tracking-dashboard):
+#   - every `uses:` pinned to a full commit SHA (trailing comment records the
+#     version tag);
+#   - the base image is digest-pinned in the Dockerfile;
+#   - Grype scans the built image and fails BEFORE anything is pushed;
+#   - the tag-derived version is read via $GITHUB_REF_NAME (shell-quoted env
+#     var, not ${{ }} spliced into script text) and validated against a
+#     strict tag-safe pattern.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compute image ref + version from tag
+        id: ref
+        run: |
+          set -euo pipefail
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME=${owner}/resume-website" >> "$GITHUB_ENV"
+          version="${GITHUB_REF_NAME#v}"
+          # Used verbatim as a Docker image tag: start alphanumeric, then
+          # [A-Za-z0-9_.-]; rejects anything multiline/injected, failing fast.
+          [[ "$version" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] \
+            || { echo "tag-derived version '$version' is not a valid Docker image tag"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "owner=${owner} version=${version}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to ghcr
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Single-arch build loaded locally so Grype scans BEFORE any push; the
+      # multi-arch build below reuses the layer cache (type=gha).
+      - name: Build image for scanning (amd64)
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image (Grype) — fail on HIGH/CRITICAL
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: ${{ env.IMAGE_NAME }}:scan
+          output-format: table
+          fail-build: "true"
+          only-fixed: "true"
+          severity-cutoff: high
+
+      - name: Image tags + labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.ref.outputs.version }}
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      # arm64 matters: the cluster's free-tier OCI nodes are Ampere A1.
+      - name: Build and push image (amd64 + arm64)
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Attempt to set image visibility to public (best effort)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          # Expected to fail on a personal-account package (GITHUB_TOKEN is
+          # not a user-to-server token); the one-time manual fallback is
+          # Package settings -> Danger Zone -> Change visibility -> Public.
+          if gh api --method PATCH "/user/packages/container/resume-website" -f visibility=public; then
+            echo "package visibility set to public"
+          else
+            echo "::warning::could not set ghcr image visibility via API; complete the one-time manual visibility toggle in the package's GitHub settings"
+          fi

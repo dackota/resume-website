@@ -1,0 +1,140 @@
+name: release-please
+
+# Opens/updates a release PR on every push to main, bumping the version in
+# .release-please-manifest.json per release-please-config.json. Merging that
+# PR tags the release (v<version>), which triggers
+# .github/workflows/publish.yml to build and push the container image.
+#
+# IMPORTANT: release-please only acts on Conventional Commits. `feat:` bumps
+# the minor, `fix:` the patch; `chore:`/`ci:`/`docs:` are recorded but cut no
+# release. A commit that doesn't parse as a conventional commit is ignored
+# entirely — no release PR appears and nothing publishes. This repo
+# squash-merges, so it is the PR title that becomes the commit on main and
+# therefore the PR title that has to be conventional.
+#
+# Both release-please-action and the merge step below authenticate as the
+# dk-renovate-bot GitHub App, not GITHUB_TOKEN, because GitHub does not let
+# actions performed by the default GITHUB_TOKEN trigger further workflow runs
+# (its anti-recursion rule): a GITHUB_TOKEN-authored merge-to-main push would
+# not re-trigger this `on: push` workflow, so release-please-action would
+# never get a chance to notice the release PR was merged and cut the tag +
+# GitHub Release that publish.yml listens for.
+#
+# Hardening: every `uses:` is pinned to a full commit SHA (trailing comment
+# records the version tag); the workflow's own GITHUB_TOKEN stays
+# `contents: read` — every write goes through the scoped App token.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # The App token step below fails with a fairly opaque error when the
+      # secrets are absent, which is easy to hit on a repo that has not been
+      # wired up to the dk-renovate-bot App yet. Fail first, with the actual
+      # remedy in the message.
+      - name: Preflight — required App secrets are present
+        env:
+          CI_APP_ID: ${{ secrets.CI_APP_ID }}
+          CI_APP_PRIVATE_KEY: ${{ secrets.CI_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -n "${CI_APP_ID:-}" ] || missing="${missing} CI_APP_ID"
+          [ -n "${CI_APP_PRIVATE_KEY:-}" ] || missing="${missing} CI_APP_PRIVATE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):${missing}. Add them under Settings -> Secrets and variables -> Actions, using the same dk-renovate-bot App credentials as dackota/generic-app-chart, and confirm that App is installed on this repository."
+            exit 1
+          fi
+          echo "App secrets present."
+
+      - name: Generate a token for the dk-renovate-bot App
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.CI_APP_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          # Scoped to exactly what release-please-action and the merge step
+          # below need: contents (commits/tags/releases), pull-requests
+          # (open/update/merge the release PR), issues (release-please uses
+          # the `autorelease: pending` label internally, on the issues API,
+          # to find its own already-open release PR on each run — skipping
+          # labeling makes it try to open a duplicate PR on the same branch
+          # and error the whole job).
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # This repo is private on GitHub's free plan, which has no branch
+      # protection or rulesets — there is no way to mark ci.yml a *required*
+      # check, and GitHub's native auto-merge (`--auto`) is rejected outright
+      # when no required check exists to wait on. So merge directly, the same
+      # way dackota/generic-app-chart does. (dackota/change-tracking-dashboard
+      # is public and uses `--auto` against a real ruleset instead; copy that
+      # shape here if this repo ever goes public again.)
+      #
+      # The release PR only ever contains a version bump and a CHANGELOG
+      # entry, and publish.yml re-scans the image with Grype before pushing
+      # anything, so nothing unreviewed reaches the registry.
+      - name: Auto-merge release PR(s)
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PRS_JSON: ${{ steps.release.outputs.prs }}
+        run: |
+          set -euo pipefail
+
+          # This job never runs actions/checkout, so `gh pr merge` has no
+          # local repo to infer the target from -- pin it with --repo or it
+          # fails with "fatal: not a git repository".
+
+          if [ -z "$PRS_JSON" ] || [ "$PRS_JSON" = "[]" ]; then
+            echo "No release PRs created or updated this run; nothing to merge."
+            exit 0
+          fi
+
+          if ! parsed=$(echo "$PRS_JSON" | jq -c '.[]'); then
+            echo "::error::failed to parse PRS_JSON as a JSON array"
+            exit 1
+          fi
+
+          if [ -z "$parsed" ]; then
+            echo "No release PRs in the parsed payload; nothing to merge."
+            exit 0
+          fi
+
+          failed=0
+          while read -r pr; do
+            number=$(echo "$pr" | jq -r '.number')
+            title=$(echo "$pr" | jq -r '.title')
+            echo "::group::release PR #$number -- $title"
+            # --squash is explicit rather than relying on the repo's default
+            # merge strategy, so every release stays a single squash commit.
+            if ! gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --squash --delete-branch; then
+              echo "::error::merge failed for release PR #$number"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done <<< "$parsed"
+
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi

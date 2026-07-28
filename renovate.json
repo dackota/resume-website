@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices"],
+  "dependencyDashboard": true,
+  "automerge": false,
+  "semanticCommits": "enabled",
+  "minimumReleaseAge": "5 days",
+  "statusCheckNames": {
+    "minimumReleaseAge": null
+  },
+  "packageRules": [
+    {
+      "description": "The nginx base image is the only dependency that reaches users, so its bump has to cut a release: commit it as fix: and release-please opens a release PR, the tag triggers publish.yml, and Renovate in the gitops repo rolls the new tag out. Held only 1 day rather than the repo-wide 5, because a base-image rebuild IS the security fix -- publish.yml fails a release on any HIGH/CRITICAL Grype finding, which is exactly what a stale base causes.",
+      "matchManagers": ["dockerfile"],
+      "semanticCommitType": "fix",
+      "minimumReleaseAge": "1 day"
+    },
+    {
+      "description": "GitHub Actions updates never reach the image: commit as chore: so release-please records them in the changelog without cutting a release.",
+      "matchManagers": ["github-actions"],
+      "semanticCommitType": "chore"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+name: CI
+
+# Build the image and smoke-test it: container starts, serves the page and
+# the /healthz probe endpoint. No push — publish.yml owns that on v* tags.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build image (amd64)
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: resume-website:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test — serves index and /healthz
+        run: |
+          set -euo pipefail
+
+          docker run -d --rm --name site -p 8080:8080 --read-only --tmpfs /tmp resume-website:ci
+
+          fail() {
+            echo "::error::$1"
+            echo "--- container logs ---"
+            docker logs site || true
+            docker stop site >/dev/null 2>&1 || true
+            exit 1
+          }
+
+          # Discard the body while polling: piping curl into a reader that
+          # exits early is what made consulting-spa's original step flaky.
+          ready=""
+          for _ in $(seq 1 40); do
+            if curl -fsS -o /dev/null http://localhost:8080/healthz; then ready=1; break; fi
+            sleep 0.5
+          done
+          [ -n "$ready" ] || fail "/healthz never came up"
+
+          # Capture the body and match with bash `case` rather than
+          # `curl | grep -q` (grep -q exits on first match, curl dies with
+          # EPIPE under pipefail — timing-dependent flake).
+          assert_contains() {
+            path="$1"; needle="$2"; body=""
+            body=$(curl -fsS "http://localhost:8080${path}") \
+              || fail "GET ${path} failed"
+            case "$body" in
+              *"$needle"*) echo "ok: GET ${path} contains '${needle}'" ;;
+              *) fail "GET ${path} did not contain '${needle}'" ;;
+            esac
+          }
+
+          assert_contains "/" "Dackota Johnson"
+          assert_contains "/" "Platform Engineering Lead"
+          # SPA fallback: unknown paths serve the app shell, not a 404
+          assert_contains "/some/deep/link" "Dackota Johnson"
+          assert_contains "/assets/styles.css" "--green"
+          assert_contains "/assets/app.js" "kubectl"
+
+          docker stop site
