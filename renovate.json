@@ -8,6 +8,7 @@
   "statusCheckNames": {
     "minimumReleaseAge": null
   },
+  "automergeStrategy": "squash",
   "packageRules": [
     {
       "description": "The nginx base image is the only dependency that reaches users, so its bump has to cut a release: commit it as fix: and release-please opens a release PR, the tag triggers publish.yml, and Renovate in the gitops repo rolls the new tag out. Held only 1 day rather than the repo-wide 5, because a base-image rebuild IS the security fix -- publish.yml fails a release on any HIGH/CRITICAL Grype finding, which is exactly what a stale base causes.",
@@ -19,6 +20,16 @@
       "description": "GitHub Actions updates never reach the image: commit as chore: so release-please records them in the changelog without cutting a release.",
       "matchManagers": ["github-actions"],
       "semanticCommitType": "chore"
+    },
+    {
+      "description": "Auto-merge low-risk leaf-dependency updates (patch, minor, digest) once required checks are green -- matches dackota/change-tracking-dashboard's convention.",
+      "matchUpdateTypes": ["patch", "minor", "digest"],
+      "automerge": true
+    },
+    {
+      "description": "Never auto-merge a major bump; always leave it as a manual PR.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
     }
   ]
 }
