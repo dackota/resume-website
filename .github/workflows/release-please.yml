@@ -83,17 +83,20 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      # This repo is private on GitHub's free plan, which has no branch
-      # protection or rulesets — there is no way to mark ci.yml a *required*
-      # check, and GitHub's native auto-merge (`--auto`) is rejected outright
-      # when no required check exists to wait on. So merge directly, the same
-      # way dackota/generic-app-chart does. (dackota/change-tracking-dashboard
-      # is public and uses `--auto` against a real ruleset instead; copy that
-      # shape here if this repo ever goes public again.)
+      # GitHub-native auto-merge (`--auto`) only actually waits for something
+      # if a branch ruleset has marked a check required — otherwise GitHub
+      # rejects enabling it outright ("nothing to wait on"), in which case we
+      # fall back to a direct squash merge. That fallback is what runs today,
+      # since this repo is currently private on GitHub's free plan (no
+      # rulesets available); it becomes a real CI-gated auto-merge, with zero
+      # further changes here, the moment the repo goes public and picks up a
+      # "require CI" ruleset (see dackota/change-tracking-dashboard for that
+      # shape). Same pattern as consulting-spa's follow-up once it goes
+      # public too.
       #
       # The release PR only ever contains a version bump and a CHANGELOG
       # entry, and publish.yml re-scans the image with Grype before pushing
-      # anything, so nothing unreviewed reaches the registry.
+      # anything, so nothing unreviewed reaches the registry either way.
       - name: Auto-merge release PR(s)
         if: steps.release.outputs.prs_created == 'true'
         env:
@@ -128,9 +131,17 @@ jobs:
             echo "::group::release PR #$number -- $title"
             # --squash is explicit rather than relying on the repo's default
             # merge strategy, so every release stays a single squash commit.
-            if ! gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --squash --delete-branch; then
-              echo "::error::merge failed for release PR #$number"
-              failed=1
+            if gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto --squash --delete-branch; then
+              echo "auto-merge enabled for #$number"
+            else
+              # `--auto` is rejected when there's no required check to wait
+              # on (today, private/no ruleset) or when the PR is already
+              # mergeable (checks already green) -- either way, merge now.
+              echo "auto-merge not enabled for #$number; attempting a direct squash merge"
+              if ! gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --squash --delete-branch; then
+                echo "::error::merge failed for release PR #$number"
+                failed=1
+              fi
             fi
             echo "::endgroup::"
           done <<< "$parsed"
