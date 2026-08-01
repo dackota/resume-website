@@ -337,6 +337,8 @@
       Live from <a href="https://changes.dackota.com" rel="noopener">changes.dackota.com</a> — a Go service
       I wrote that polls my config repos, extracts tracked values, and classifies every change by impact
       and risk. Below is what it has actually seen: real commits, real version deltas, no screenshots.
+      Chart and Terraform changes will show you their <strong>blast radius</strong> — what the bump did to
+      the rendered manifests, or which resources it would replace.
     </p>
 
     <div class="auto-grid">
@@ -360,6 +362,31 @@
         <span class="auto-label">repositories under change tracking</span>
         <span class="auto-def">charts, clusters, and this site</span>
       </div>
+    </div>
+
+    <div class="heatmap-panel">
+      <div class="heatmap-head">
+        <span class="heatmap-title">30 days of change, colored by the highest impact that day</span>
+        <span class="heatmap-legend">
+          <span class="hm-key major">major</span><span class="hm-key minor">minor</span><span class="hm-key patch">patch</span><span class="hm-key other">other</span>
+        </span>
+      </div>
+      <div class="heatmap" id="heatmap" role="group" aria-label="Daily change activity, last 30 days"></div>
+      <div class="heatmap-axis"><span>30 days ago</span><span>today</span></div>
+      <p class="heatmap-note">
+        Pick a day to re-query the feed against that exact half-open window
+        (<code>since</code> inclusive, <code>asOf</code> exclusive) — the same tiling the API's polling recipe uses.
+      </p>
+    </div>
+
+    <div class="filters" id="filters">
+      <span class="filter-label">impact</span>
+      <div class="filter-chips" id="impact-chips" role="group" aria-label="Filter by impact tier"></div>
+      <label class="filter-label" for="repo-select">repo</label>
+      <select class="filter-select" id="repo-select" aria-label="Filter by repository">
+        <option value="">all tracked repos</option>
+      </select>
+      <button class="btn btn-ghost filter-clear" id="filter-clear" type="button" hidden>clear filters</button>
     </div>
 
     <ol class="feed" id="change-feed" aria-live="polite"></ol>
