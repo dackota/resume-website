@@ -4,13 +4,18 @@
 # consulting-spa and change-tracking-dashboard; bump tag+digest together.
 FROM nginxinc/nginx-unprivileged:1.31.3-alpine3.24@sha256:59ccf0943b0b8e8d9e6ea9039a39555730f544701a655c596f7df7d096c593f5
 
+# Build steps run as root because both of them write outside the runtime
+# user's reach: apk needs the package db, and the version substitution below
+# rewrites a root-owned file in a root-owned directory (sed -i writes a temp
+# file alongside its target, so directory write permission is required).
+# The image drops back to the unprivileged uid at the end, before EXPOSE.
+USER root
+
 # The /api/changes/ proxy speaks TLS to an upstream with proxy_ssl_verify on,
 # which needs a trust store present at a known path. Installed explicitly
 # rather than inherited, so a base-image change can't silently break it.
-USER root
 RUN apk add --no-cache ca-certificates && \
     test -s /etc/ssl/certs/ca-certificates.crt
-USER 101
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY index.html favicon.svg /usr/share/nginx/html/
@@ -30,5 +35,7 @@ RUN ASSET_VER="$(sed -n 's/.*"\.": *"\([^"]*\)".*/\1/p' /tmp/manifest.json)" && 
     sed -i "s|__ASSET_VER__|${ASSET_VER}|g" /usr/share/nginx/html/index.html && \
     ! grep -q "__ASSET_VER__" /usr/share/nginx/html/index.html && \
     rm /tmp/manifest.json
+
+USER 101
 
 EXPOSE 8080
