@@ -648,6 +648,15 @@
     var errors = 0;
     var open = 0;
 
+    // Every render rebuilds the list, which resets scrollTop. Tail the newest
+    // spans only while the viewer is already at the bottom; if they've scrolled
+    // up to read something, hold their position instead of yanking them away.
+    var scroller = document.getElementById("trace-scroll");
+    var prevTop = scroller ? scroller.scrollTop : 0;
+    var stick = scroller
+      ? (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight) < 24
+      : false;
+
     wf.textContent = "";
     spans.forEach(function (s) {
       if (s.status === "ERROR") errors += 1;
@@ -697,6 +706,8 @@
       });
       wf.appendChild(row);
     });
+
+    if (scroller) scroller.scrollTop = stick ? scroller.scrollHeight : prevTop;
 
     if (meta) {
       meta.textContent = "";
