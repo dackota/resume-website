@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/dackota/resume-website/compare/v1.3.0...v1.3.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* confine the span waterfall to a fixed viewport ([#19](https://github.com/dackota/resume-website/issues/19)) ([51db2c4](https://github.com/dackota/resume-website/commit/51db2c4252fe0c88606be291e19d2b6849b07599))
+
 ## [1.3.0](https://github.com/dackota/resume-website/compare/v1.2.1...v1.3.0) (2026-08-01)
 
 
