@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/dackota/resume-website/compare/v1.1.0...v1.2.0) (2026-08-01)
+
+
+### Features
+
+* live change feed from the change-tracking dashboard ([#11](https://github.com/dackota/resume-website/issues/11)) ([9f0694a](https://github.com/dackota/resume-website/commit/9f0694a747c79de60f16e41d6baf5dbfc98cceb5))
+
 ## [1.1.0](https://github.com/dackota/resume-website/compare/v1.0.2...v1.1.0) (2026-08-01)
 
 
