@@ -43,7 +43,17 @@
 
     function now() { return performance.now() - t0; }
 
-    function duration(s) { return (s.end === null ? now() : s.end) - s.start; }
+    // The trace is measured to its last recorded event, not to wall-clock now.
+    // The root span never ends, so anchoring on now() made every duration climb
+    // forever while the page sat idle. Clipping open spans here freezes the
+    // whole view between events — which is also what makes a repaint timer
+    // unnecessary: nothing can change until a span starts or ends.
+    var lastEventAt = 0;
+
+    function duration(s) {
+      var until = s.end === null ? lastEventAt : s.end;
+      return Math.max(until - s.start, 0);
+    }
 
     function breached(s) {
       return s.objective !== null && s.end !== null && duration(s) > s.objective;
@@ -63,6 +73,7 @@
         objective: typeof opts.objective === "number" ? opts.objective : null,
         attrs: opts.attrs || {}
       };
+      lastEventAt = span.start;
       spans.push(span);
       notify();
       return {
@@ -72,6 +83,7 @@
           if (span.end !== null) return span;
           opt = opt || {};
           span.end = now();
+          lastEventAt = span.end;
           if (opt.attrs) {
             for (var k in opt.attrs) { if (opt.attrs.hasOwnProperty(k)) span.attrs[k] = opt.attrs[k]; }
           }
@@ -88,6 +100,7 @@
       spans: function () { return spans; },
       start: start,
       now: now,
+      lastEvent: function () { return lastEventAt; },
       duration: duration,
       breached: breached,
       onChange: function (fn) { subscribers.push(fn); }
@@ -616,7 +629,7 @@
     line("span.kind", span.kind);
     line("otel.status_code", span.end === null ? "UNSET (in flight)" : span.status,
       span.status === "ERROR" ? "err" : "v");
-    line("duration", fmtDur(dur) + (span.end === null ? " and counting" : ""));
+    line("duration", fmtDur(dur) + (span.end === null ? " — still open, measured to the last event" : ""));
     if (span.objective !== null) {
       line("slo.objective_ms", span.objective + "ms");
       line("slo.verdict", Trace.breached(span) ? "BREACH — burned error budget" : "within objective",
@@ -631,7 +644,7 @@
     if (!wf) return;
 
     var spans = Trace.spans();
-    var total = Math.max(Trace.now(), 1);
+    var total = Math.max(Trace.lastEvent(), 1);
     var errors = 0;
     var open = 0;
 
@@ -771,17 +784,6 @@
         if (sel) renderAttrs(sel);
       });
     });
-
-    // Open spans keep growing; tick while the explorer is on screen.
-    var visible = false;
-    if ("IntersectionObserver" in window) {
-      new IntersectionObserver(function (entries) {
-        visible = entries[0].isIntersecting;
-      }, { threshold: 0 }).observe(document.getElementById("trace"));
-    }
-    setInterval(function () {
-      if (visible && document.visibilityState === "visible") renderTrace();
-    }, 1000);
 
     var note = document.getElementById("trace-note");
     var copyBtn = document.getElementById("trace-copy");
@@ -1791,7 +1793,7 @@
   /* ================= terminal: observability commands ================= */
   function cmdTrace() {
     var spans = Trace.spans();
-    print("trace_id " + Trace.traceId() + "  ·  " + spans.length + " spans  ·  " + fmtDur(Trace.now()), "line-cyan");
+    print("trace_id " + Trace.traceId() + "  ·  " + spans.length + " spans  ·  " + fmtDur(Trace.lastEvent()), "line-cyan");
     print(pad("SERVICE", 14) + pad("SPAN", 34) + pad("DURATION", 12) + "STATUS");
     spans.forEach(function (s) {
       var status = s.end === null ? "in flight" : s.status;
