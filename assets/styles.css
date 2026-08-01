@@ -304,7 +304,18 @@ code {
 .trace-meta { display: flex; gap: 1.2rem; flex-wrap: wrap; color: var(--muted); font-size: 0.74rem; margin-bottom: 0.9rem; }
 .trace-meta b { color: var(--cyan); font-weight: 500; word-break: break-all; }
 
-.trace-scroll { overflow-x: auto; }
+/* The span list grows as you browse, so it gets a viewport of its own rather
+   than pushing the rest of the page down. Fixed rather than max-height — the
+   same treatment .term-scroll gets — so the panel never reflows the page as
+   spans arrive. A growing box would be layout shift, on a page that scores
+   its own CLS a section further down. Roughly 15 rows tall. */
+.trace-scroll {
+  overflow: auto;
+  height: 21rem;
+  overscroll-behavior: contain;
+}
+.trace-scroll:focus-visible { outline: 2px solid var(--green-dim); outline-offset: 2px; }
+
 .waterfall { min-width: 560px; }
 .trace-empty { color: var(--muted); font-size: 0.76rem; padding: 0.6rem 0; }
 
@@ -662,5 +673,6 @@ code {
   .res-kind { flex-basis: 5rem; }
   .term-scroll { height: 340px; }
   .span-row { grid-template-columns: minmax(0, 160px) minmax(0, 1fr) 56px; }
+  .trace-scroll { height: 15rem; }
   .trace-pill { right: 0.7rem; bottom: 0.7rem; }
 }
