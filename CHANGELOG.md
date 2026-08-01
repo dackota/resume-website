@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/dackota/resume-website/compare/v1.2.0...v1.2.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* version asset URLs so releases can't strand returning visitors ([#14](https://github.com/dackota/resume-website/issues/14)) ([fd48c45](https://github.com/dackota/resume-website/commit/fd48c450246e65dea6e3c6bd270386b47f34abd3))
+
 ## [1.2.0](https://github.com/dackota/resume-website/compare/v1.1.0...v1.2.0) (2026-08-01)
 
 
