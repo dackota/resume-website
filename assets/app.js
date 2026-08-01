@@ -1116,11 +1116,19 @@
      Data comes from change-tracking-dashboard, proxied same-origin by nginx
      at /api/changes/ — the upstream sends no CORS headers, and proxying keeps
      this page's CSP at connect-src 'self'. */
-  var CHANGES_API = "/api/changes/changesets";
-  var changesets = [];
+  var CHANGES_BASE = "/api/changes/";
+  var WINDOW_DAYS = 30;
+  var FEED_PAGE = 8;
+  var MAX_WINDOW_PAGES = 5;
+  var IMPACT_TIERS = ["major", "minor", "patch", "downgrade", "other"];
+  var TERRAFORM_KINDS = { provider: 1, module: 1, resource: 1, variable: 1 };
+
+  var windowSets = [];          // the unfiltered 30-day window: tiles + heatmap
+  var feedItems = [];           // what the feed is currently showing
   var nextCursor = null;
   var feedRendered = 0;
-  var FEED_PAGE = 8;
+  var repoIndex = {};           // short name -> full repo URL
+  var filters = { impacts: [], repo: "", day: null };
 
   function repoName(url) {
     return String(url).replace(/\.git$/, "").split("/").pop() || url;
@@ -1150,13 +1158,58 @@
     return s.length > 46 ? s.slice(0, 45) + "…" : s;
   }
 
+  function dayKey(d) { return new Date(d).toISOString().slice(0, 10); }
+
+  function windowSince() {
+    return new Date(Date.now() - WINDOW_DAYS * DAY).toISOString().replace(/\.\d+Z$/, "Z");
+  }
+
+  /* ---- transport ---- */
+  function changesFetch(path, query, accept) {
+    var url = CHANGES_BASE + path + (query ? "?" + query : "");
+    var span = Trace.start("GET /api/changes/" + path, {
+      service: "changes-api", kind: "CLIENT",
+      attrs: {
+        "http.method": "GET",
+        "peer.service": "change-tracking-dashboard",
+        "http.accept": accept,
+        "changes.query": query || "(none)"
+      }
+    });
+    return fetch(url, { headers: { "Accept": accept } })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return accept === "application/json" ? res.json() : res.text();
+      })
+      .then(function (body) {
+        span.end({ attrs: { "http.status_code": 200 } });
+        return body;
+      })
+      .catch(function (err) {
+        span.end({ status: "ERROR", attrs: { "error.message": String(err.message || err) } });
+        throw err;
+      });
+  }
+
+  function feedError(err) {
+    var note = document.getElementById("feed-note");
+    if (note) {
+      note.className = "feed-note err";
+      note.textContent = "change feed unreachable (" + (err.message || err) + ") — the dashboard is a " +
+        "single replica on free-tier hardware, so this section fails open rather than inventing history.";
+    }
+    var moreBtn = document.getElementById("feed-more");
+    if (moreBtn) moreBtn.hidden = true;
+  }
+
+  /* ---- stat tiles ---- */
   function renderChangeStats() {
-    if (!changesets.length) return;
+    if (!windowSets.length) return;
     var bots = 0;
     var repos = {};
     var oldest = Infinity;
     var newest = 0;
-    changesets.forEach(function (c) {
+    windowSets.forEach(function (c) {
       if (isBot(c.author)) bots += 1;
       repos[repoName(c.repo)] = true;
       var t = new Date(c.committedAt).getTime();
@@ -1169,17 +1222,387 @@
       var el = document.querySelector('.auto-tile[data-auto="' + key + '"] .auto-value');
       if (el) el.textContent = value;
     }
-    tile("bots", Math.round(bots / changesets.length * 100) + "%");
-    tile("count", String(changesets.length));
-    tile("rate", (changesets.length / days).toFixed(1));
+    tile("bots", Math.round(bots / windowSets.length * 100) + "%");
+    tile("count", String(windowSets.length));
+    tile("rate", (windowSets.length / days).toFixed(1));
     tile("repos", String(Object.keys(repos).length));
   }
 
+  /* ---- heatmap ---- */
+  function topImpact(tiers) {
+    for (var i = 0; i < IMPACT_TIERS.length; i += 1) {
+      if (tiers[IMPACT_TIERS[i]]) return IMPACT_TIERS[i];
+    }
+    return "other";
+  }
+
+  function renderHeatmap() {
+    var hm = document.getElementById("heatmap");
+    if (!hm) return;
+
+    var byDay = {};
+    windowSets.forEach(function (c) {
+      var k = dayKey(c.committedAt);
+      if (!byDay[k]) byDay[k] = { count: 0, tiers: {} };
+      byDay[k].count += 1;
+      byDay[k].tiers[c.impact || "other"] = true;
+    });
+
+    var max = 1;
+    Object.keys(byDay).forEach(function (k) { if (byDay[k].count > max) max = byDay[k].count; });
+
+    hm.textContent = "";
+    for (var i = WINDOW_DAYS - 1; i >= 0; i -= 1) {
+      var date = new Date(Date.now() - i * DAY);
+      var key = dayKey(date);
+      var bucket = byDay[key];
+      var cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "hm-cell" + (bucket ? " " + topImpact(bucket.tiers) : " empty");
+      cell.style.setProperty("--hm-intensity", bucket ? (0.35 + 0.65 * (bucket.count / max)).toFixed(2) : "1");
+      cell.setAttribute("aria-pressed", filters.day && filters.day.key === key ? "true" : "false");
+      cell.title = key + " · " + (bucket ? bucket.count + " changeset" + (bucket.count === 1 ? "" : "s") +
+        " · highest impact: " + topImpact(bucket.tiers) : "no changes");
+      cell.setAttribute("aria-label", cell.title);
+
+      (function (k) {
+        cell.addEventListener("click", function () {
+          if (filters.day && filters.day.key === k) {
+            filters.day = null;
+          } else {
+            filters.day = {
+              key: k,
+              since: k + "T00:00:00Z",
+              asOf: dayKey(new Date(new Date(k + "T00:00:00Z").getTime() + DAY)) + "T00:00:00Z"
+            };
+          }
+          renderHeatmap();
+          syncFilterUI();
+          queryFeed(null);
+        });
+      })(key);
+
+      hm.appendChild(cell);
+    }
+  }
+
+  /* ---- filters ---- */
+  function syncFilterUI() {
+    var clear = document.getElementById("filter-clear");
+    var active = filters.impacts.length || filters.repo || filters.day;
+    if (clear) clear.hidden = !active;
+
+    Array.prototype.forEach.call(document.querySelectorAll("#impact-chips .filter-chip"), function (chip) {
+      var on = filters.impacts.indexOf(chip.getAttribute("data-impact")) > -1;
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+
+    var select = document.getElementById("repo-select");
+    if (select && select.value !== filters.repo) select.value = filters.repo;
+  }
+
+  function buildFilterControls() {
+    var chips = document.getElementById("impact-chips");
+    if (chips && !chips.childNodes.length) {
+      IMPACT_TIERS.forEach(function (tier) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "filter-chip impact " + tier;
+        chip.setAttribute("data-impact", tier);
+        chip.setAttribute("aria-pressed", "false");
+        chip.textContent = tier;
+        chip.addEventListener("click", function () {
+          var at = filters.impacts.indexOf(tier);
+          if (at > -1) filters.impacts.splice(at, 1);
+          else filters.impacts.push(tier);
+          syncFilterUI();
+          queryFeed(null);
+        });
+        chips.appendChild(chip);
+      });
+    }
+
+    var select = document.getElementById("repo-select");
+    if (select && select.options.length <= 1) {
+      Object.keys(repoIndex).sort().forEach(function (short) {
+        var opt = document.createElement("option");
+        opt.value = repoIndex[short];
+        opt.textContent = short;
+        select.appendChild(opt);
+      });
+      select.addEventListener("change", function () {
+        filters.repo = select.value;
+        syncFilterUI();
+        queryFeed(null);
+      });
+    }
+
+    var clear = document.getElementById("filter-clear");
+    if (clear && !clear.getAttribute("data-wired")) {
+      clear.setAttribute("data-wired", "1");
+      clear.addEventListener("click", function () {
+        filters = { impacts: [], repo: "", day: null };
+        var sel = document.getElementById("repo-select");
+        if (sel) sel.value = "";
+        renderHeatmap();
+        syncFilterUI();
+        queryFeed(null);
+      });
+    }
+  }
+
+  function currentQuery() {
+    var parts = ["limit=50"];
+    if (filters.day) {
+      parts.push("since=" + encodeURIComponent(filters.day.since));
+      parts.push("asOf=" + encodeURIComponent(filters.day.asOf));
+    } else {
+      parts.push("since=" + encodeURIComponent(windowSince()));
+    }
+    filters.impacts.forEach(function (i) { parts.push("impact=" + encodeURIComponent(i)); });
+    if (filters.repo) parts.push("repo=" + encodeURIComponent(filters.repo));
+    return parts.join("&");
+  }
+
+  function filterSummary() {
+    var bits = [];
+    if (filters.impacts.length) bits.push("impact " + filters.impacts.join("/"));
+    if (filters.repo) bits.push(repoName(filters.repo));
+    if (filters.day) bits.push(filters.day.key);
+    return bits.length ? " · filtered by " + bits.join(" + ") : "";
+  }
+
+  /* ---- feed ---- */
+  function queryFeed(cursor) {
+    var query = currentQuery() + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "");
+    var note = document.getElementById("feed-note");
+    if (note && !cursor) { note.className = "feed-note"; note.textContent = "querying…"; }
+
+    return changesFetch("changesets", query, "application/json")
+      .then(function (body) {
+        if (!cursor) {
+          feedItems = [];
+          feedRendered = 0;
+          var feed = document.getElementById("change-feed");
+          if (feed) feed.textContent = "";
+        }
+        feedItems = feedItems.concat(body.changesets || []);
+        // Follow nextCursor until it comes back empty — a short page is not the last page.
+        nextCursor = body.nextCursor || null;
+        renderChangeFeed();
+      })
+      .catch(feedError);
+  }
+
+  /* ---- blast radius ---- */
+  var PATH_RE = /data-kind="([a-z]+)"|data-tenant-path="([^"]+)"/g;
+
+  function extractTargets(fragment) {
+    // The JSON representation omits the file path; the HTML fragment carries it
+    // on the change's diff slot. Attribute values only — no upstream markup is
+    // ever inserted into this page.
+    var targets = [];
+    var seen = {};
+    var kind = null;
+    var m;
+    PATH_RE.lastIndex = 0;
+    while ((m = PATH_RE.exec(fragment)) !== null) {
+      if (m[1]) { kind = m[1]; continue; }
+      var path = m[2];
+      if (!/^[\w.\-/]+$/.test(path)) continue;
+      var key = kind + "|" + path;
+      if (seen[key]) continue;
+      seen[key] = true;
+      targets.push({ kind: kind, path: path });
+    }
+    return targets;
+  }
+
+  var OUTCOMES = {
+    "no-prior-version": "root commit — there is no earlier version to diff against.",
+    "unavailable": "a chart dependency has no vendored artifact; this service never pulls from a registry.",
+    "could-not-render": "the chart could not be rendered from the commit's contents.",
+    "exceeded-limits": "the render hit a configured timeout or resource ceiling."
+  };
+
+  function renderDiffText(unified, truncated, into) {
+    var pre = document.createElement("pre");
+    pre.className = "diff";
+    var lines = String(unified).split("\n");
+    var shown = lines.slice(0, 400);
+    shown.forEach(function (line) {
+      var el = document.createElement("span");
+      el.className = "diff-line " + (line.charAt(0) === "+" ? "add" : (line.charAt(0) === "-" ? "del" : "ctx"));
+      el.textContent = line + "\n";
+      pre.appendChild(el);
+    });
+    into.appendChild(pre);
+
+    if (lines.length > shown.length) {
+      var more = document.createElement("p");
+      more.className = "blast-note";
+      more.textContent = "… " + (lines.length - shown.length) + " more lines not rendered here.";
+      into.appendChild(more);
+    }
+    if (truncated) {
+      var warn = document.createElement("p");
+      warn.className = "blast-note warn";
+      warn.textContent = "⚠ the API truncated this diff at its size ceiling — the counts above are still the true totals.";
+      into.appendChild(warn);
+    }
+  }
+
+  function renderChartDiff(target, body, into) {
+    var head = document.createElement("div");
+    head.className = "blast-head";
+    var path = document.createElement("span");
+    path.className = "blast-path";
+    path.textContent = target.path;
+    head.appendChild(path);
+
+    if (body.kind !== "ok" || !body.diff) {
+      var why = document.createElement("span");
+      why.className = "blast-outcome";
+      why.textContent = OUTCOMES[body.kind] || body.kind;
+      head.appendChild(why);
+      into.appendChild(head);
+      return;
+    }
+
+    var s = body.diff.summary || {};
+    var stat = document.createElement("span");
+    stat.className = "blast-stat";
+    stat.textContent = s.manifestsChanged + " manifests changed";
+    head.appendChild(stat);
+    var plus = document.createElement("span");
+    plus.className = "blast-add";
+    plus.textContent = "+" + s.linesAdded;
+    head.appendChild(plus);
+    var minus = document.createElement("span");
+    minus.className = "blast-del";
+    minus.textContent = "−" + s.linesRemoved;
+    head.appendChild(minus);
+    into.appendChild(head);
+
+    renderDiffText(body.diff.unified, body.diff.truncated, into);
+  }
+
+  function renderPlanDiff(target, body, into) {
+    var head = document.createElement("div");
+    head.className = "blast-head";
+    var path = document.createElement("span");
+    path.className = "blast-path";
+    path.textContent = target.path;
+    head.appendChild(path);
+
+    if (body.kind !== "ok") {
+      var why = document.createElement("span");
+      why.className = "blast-outcome";
+      why.textContent = OUTCOMES[body.kind] || body.kind;
+      head.appendChild(why);
+      into.appendChild(head);
+      return;
+    }
+
+    var sum = body.summary || {};
+    var stat = document.createElement("span");
+    stat.className = "blast-stat";
+    stat.textContent = (sum.added || 0) + " added · " + (sum.changed || 0) + " changed · " + (sum.removed || 0) + " removed";
+    head.appendChild(stat);
+    var repl = document.createElement("span");
+    repl.className = "blast-replace" + (sum.replaced ? " danger" : "");
+    repl.textContent = (sum.replaced || 0) + " force replacement";
+    head.appendChild(repl);
+    into.appendChild(head);
+
+    if (body.resources && body.resources.length) {
+      var list = document.createElement("ul");
+      list.className = "resources-diff";
+      body.resources.forEach(function (r) {
+        var li = document.createElement("li");
+        var k = document.createElement("span");
+        k.className = "res-change " + r.kind;
+        k.textContent = r.kind;
+        li.appendChild(k);
+        var addr = document.createElement("span");
+        addr.className = "res-addr";
+        addr.textContent = r.type + "." + r.name;
+        li.appendChild(addr);
+        if (r.forcesReplacement) {
+          var f = document.createElement("span");
+          f.className = "res-forces";
+          f.textContent = "forces replacement";
+          li.appendChild(f);
+        }
+        list.appendChild(li);
+      });
+      into.appendChild(list);
+    }
+
+    if (body.diff && body.diff.unified) renderDiffText(body.diff.unified, body.diff.truncated, into);
+  }
+
+  function inspectBlastRadius(c, panel, btn) {
+    btn.disabled = true;
+    btn.textContent = "computing blast radius…";
+    panel.hidden = false;
+    panel.textContent = "";
+
+    var detailQuery = "repo=" + encodeURIComponent(c.repo) + "&commitSha=" + encodeURIComponent(c.commitSha);
+
+    changesFetch("changesets/detail", detailQuery, "text/html")
+      .then(function (fragment) {
+        var targets = extractTargets(fragment).filter(function (t) {
+          return t.kind === "chart" || TERRAFORM_KINDS[t.kind];
+        });
+        if (!targets.length) throw new Error("no diffable path on this changeset");
+
+        return Promise.all(targets.map(function (t) {
+          var route = t.kind === "chart" ? "changesets/detail/chart-diff" : "changesets/detail/plan-diff";
+          return changesFetch(route, detailQuery + "&path=" + encodeURIComponent(t.path), "application/json")
+            .then(function (body) { return { target: t, body: body }; });
+        }));
+      })
+      .then(function (results) {
+        results.forEach(function (r) {
+          var block = document.createElement("div");
+          block.className = "blast-block";
+          if (r.target.kind === "chart") renderChartDiff(r.target, r.body, block);
+          else renderPlanDiff(r.target, r.body, block);
+          panel.appendChild(block);
+        });
+        var foot = document.createElement("p");
+        foot.className = "blast-note";
+        foot.textContent = c.changes.some(function (ch) { return TERRAFORM_KINDS[ch.kind]; })
+          ? "Computed statically from the materialized subtree — no terraform plan, no provider credentials, no state access."
+          : "Rendered-manifest diff — what the version bump actually did to the Kubernetes objects, not just the version string.";
+        panel.appendChild(foot);
+
+        btn.textContent = "hide blast radius";
+        btn.disabled = false;
+      })
+      .catch(function (err) {
+        var msg = document.createElement("p");
+        msg.className = "blast-note warn";
+        msg.textContent = "blast radius unavailable: " + (err.message || err);
+        panel.appendChild(msg);
+        btn.textContent = "blast radius unavailable";
+        btn.disabled = true;
+      });
+  }
+
+  function diffableKinds(c) {
+    return (c.changes || []).some(function (ch) {
+      return ch.kind === "chart" || TERRAFORM_KINDS[ch.kind];
+    });
+  }
+
+  /* ---- feed rendering ---- */
   function renderChangeFeed() {
     var feed = document.getElementById("change-feed");
     if (!feed) return;
 
-    changesets.slice(feedRendered, feedRendered + FEED_PAGE).forEach(function (c) {
+    feedItems.slice(feedRendered, feedRendered + FEED_PAGE).forEach(function (c) {
       var li = document.createElement("li");
 
       var head = document.createElement("div");
@@ -1273,57 +1696,61 @@
         li.appendChild(deltas);
       }
 
+      if (diffableKinds(c)) {
+        var blastBtn = document.createElement("button");
+        blastBtn.type = "button";
+        blastBtn.className = "blast-btn";
+        blastBtn.textContent = "▸ inspect blast radius";
+        var panel = document.createElement("div");
+        panel.className = "blast-panel";
+        panel.hidden = true;
+
+        (function (changeset, button, target) {
+          var loaded = false;
+          button.addEventListener("click", function () {
+            if (!loaded) { loaded = true; inspectBlastRadius(changeset, target, button); return; }
+            target.hidden = !target.hidden;
+            button.textContent = target.hidden ? "▸ show blast radius" : "hide blast radius";
+          });
+        })(c, blastBtn, panel);
+
+        li.appendChild(blastBtn);
+        li.appendChild(panel);
+      }
+
       feed.appendChild(li);
     });
 
-    feedRendered = Math.min(feedRendered + FEED_PAGE, changesets.length);
+    feedRendered = Math.min(feedRendered + FEED_PAGE, feedItems.length);
 
     var moreBtn = document.getElementById("feed-more");
     var note = document.getElementById("feed-note");
-    if (moreBtn) moreBtn.hidden = feedRendered >= changesets.length && !nextCursor;
+    if (moreBtn) moreBtn.hidden = feedRendered >= feedItems.length && !nextCursor;
     if (note) {
       note.className = "feed-note";
-      note.textContent = "showing " + feedRendered + " of " + changesets.length + " loaded" +
-        (nextCursor ? " · more behind the cursor" : " · end of the feed");
+      if (!feedItems.length) {
+        note.textContent = "no changesets match" + filterSummary() +
+          " — an empty result and an unreachable class look the same from here, by design.";
+      } else {
+        var shown = feedItems.slice(0, feedRendered);
+        var hint = shown.some(diffableKinds) ? ""
+          : " · nothing here has a blast radius — chart and Terraform changes do, and most of those land as major";
+        note.textContent = "showing " + feedRendered + " of " + feedItems.length + " loaded" +
+          (nextCursor ? " · more behind the cursor" : " · end of the feed") + filterSummary() + hint;
+      }
     }
   }
 
-  function fetchChanges(cursor) {
-    var url = CHANGES_API + "?limit=50" + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "");
-    var span = Trace.start("GET /api/changes/changesets", {
-      service: "changes-api", kind: "CLIENT",
-      attrs: {
-        "http.method": "GET",
-        "peer.service": "change-tracking-dashboard",
-        "changes.page_size": 50,
-        "changes.paginated": cursor ? "cursor follow-up" : "first page"
-      }
+  /* ---- boot the window ---- */
+  function loadWindow(cursor, pagesLeft) {
+    var query = "limit=100&since=" + encodeURIComponent(windowSince()) +
+      (cursor ? "&cursor=" + encodeURIComponent(cursor) : "");
+    return changesFetch("changesets", query, "application/json").then(function (body) {
+      windowSets = windowSets.concat(body.changesets || []);
+      (body.changesets || []).forEach(function (c) { repoIndex[repoName(c.repo)] = c.repo; });
+      if (body.nextCursor && pagesLeft > 1) return loadWindow(body.nextCursor, pagesLeft - 1);
+      return null;
     });
-
-    return fetch(url, { headers: { "Accept": "application/json" } })
-      .then(function (res) {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      })
-      .then(function (body) {
-        span.end({ attrs: { "http.status_code": 200, "changes.returned": (body.changesets || []).length } });
-        changesets = changesets.concat(body.changesets || []);
-        // Follow nextCursor until it comes back empty — a short page is not the last page.
-        nextCursor = body.nextCursor || null;
-        renderChangeStats();
-        renderChangeFeed();
-      })
-      .catch(function (err) {
-        span.end({ status: "ERROR", attrs: { "error.message": String(err.message || err) } });
-        var note = document.getElementById("feed-note");
-        if (note) {
-          note.className = "feed-note err";
-          note.textContent = "change feed unreachable (" + (err.message || err) + ") — the dashboard is a " +
-            "single replica on free-tier hardware, so this section fails open rather than inventing history.";
-        }
-        var moreBtn = document.getElementById("feed-more");
-        if (moreBtn) moreBtn.hidden = true;
-      });
   }
 
   function initChanges() {
@@ -1333,18 +1760,30 @@
     var moreBtn = document.getElementById("feed-more");
     if (moreBtn) {
       moreBtn.addEventListener("click", function () {
-        if (feedRendered < changesets.length) { renderChangeFeed(); return; }
+        if (feedRendered < feedItems.length) { renderChangeFeed(); return; }
         if (!nextCursor) return;
         moreBtn.disabled = true;
-        fetchChanges(nextCursor).then(function () { moreBtn.disabled = false; });
+        queryFeed(nextCursor).then(function () { moreBtn.disabled = false; });
       });
     }
 
-    if (!("IntersectionObserver" in window)) { fetchChanges(null); return; }
+    function boot() {
+      loadWindow(null, MAX_WINDOW_PAGES)
+        .then(function () {
+          renderChangeStats();
+          renderHeatmap();
+          buildFilterControls();
+          syncFilterUI();
+          return queryFeed(null);
+        })
+        .catch(feedError);
+    }
+
+    if (!("IntersectionObserver" in window)) { boot(); return; }
     var io = new IntersectionObserver(function (entries) {
       if (!entries[0].isIntersecting) return;
       io.disconnect();
-      fetchChanges(null);
+      boot();
     }, { rootMargin: "300px" });
     io.observe(feed);
   }
@@ -1388,16 +1827,16 @@
   }
 
   function cmdChanges(repoFilter) {
-    if (!changesets.length) {
+    if (!windowSets.length) {
       print("change feed not loaded yet — scroll to # changes.feed to trigger the query.", "line-warn");
       return;
     }
-    var rows = changesets.filter(function (c) {
+    var rows = windowSets.filter(function (c) {
       return !repoFilter || repoName(c.repo).indexOf(repoFilter) > -1;
     });
     if (!rows.length) {
       print("no changesets for repo matching '" + repoFilter + "'", "line-err");
-      print("tracked: " + Object.keys(changesets.reduce(function (acc, c) {
+      print("tracked: " + Object.keys(windowSets.reduce(function (acc, c) {
         acc[repoName(c.repo)] = true; return acc;
       }, {})).join(", "));
       return;
