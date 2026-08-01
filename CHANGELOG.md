@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/dackota/resume-website/compare/v1.0.2...v1.1.0) (2026-08-01)
+
+
+### Features
+
+* instrument the site as a trace, an SLO, and live DORA metrics ([#9](https://github.com/dackota/resume-website/issues/9)) ([7dff506](https://github.com/dackota/resume-website/commit/7dff5064d46e117a5f8afb7b12ffb6b4c6680df0))
+
 ## [1.0.2](https://github.com/dackota/resume-website/compare/v1.0.1...v1.0.2) (2026-07-30)
 
 
