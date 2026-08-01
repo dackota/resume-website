@@ -329,6 +329,7 @@
     print("  trace                         the spans this visit has produced");
     print("  slo                           this session's SLI and error budget");
     print("  dora                          live DORA metrics for this site's repo");
+    print("  changes [--repo <name>]       live change feed from my own platform");
     print("  helm install interview .      generate an interview");
     print("  cat resume.md                 the plain-text version");
     print("  history | clear | exit        the usual");
@@ -510,6 +511,8 @@
     else if (lower === "trace" || lower === "otel spans" || lower === "otel trace") cmdTrace();
     else if (lower === "slo" || lower === "slo status" || lower === "error budget") cmdSlo();
     else if (lower === "dora" || lower === "dora metrics") cmdDora();
+    else if (lower === "changes" || lower === "changes feed") cmdChanges(null);
+    else if (/^changes (--repo |-r )/.test(lower)) cmdChanges(lower.replace(/^changes (--repo |-r )/, "").trim());
     else if (/^(terraform|tofu) (apply|destroy)/.test(lower)) {
       print("Plan: 1 to add (interview), 0 to change, 0 to destroy.", "line-out");
       print("Apply complete! Resources: 1 added. Output: email = dackota.j@gmail.com", "line-ok");
@@ -1109,6 +1112,243 @@
     io.observe(grid);
   }
 
+  /* ================= live change feed =================
+     Data comes from change-tracking-dashboard, proxied same-origin by nginx
+     at /api/changes/ — the upstream sends no CORS headers, and proxying keeps
+     this page's CSP at connect-src 'self'. */
+  var CHANGES_API = "/api/changes/changesets";
+  var changesets = [];
+  var nextCursor = null;
+  var feedRendered = 0;
+  var FEED_PAGE = 8;
+
+  function repoName(url) {
+    return String(url).replace(/\.git$/, "").split("/").pop() || url;
+  }
+
+  function isBot(author) {
+    return /\[bot\]|renovate|dependabot|release-please/i.test(author || "");
+  }
+
+  function relTime(iso) {
+    var ms = Date.now() - new Date(iso).getTime();
+    if (ms < 60000) return "just now";
+    if (ms < 3600000) return Math.round(ms / 60000) + " min ago";
+    if (ms < DAY) {
+      var hrs = Math.round(ms / 3600000);
+      return hrs + (hrs === 1 ? " hr ago" : " hrs ago");
+    }
+    var days = Math.round(ms / DAY);
+    return days + (days === 1 ? " day ago" : " days ago");
+  }
+
+  function shortValue(v) {
+    var s = String(v);
+    var at = s.indexOf("@sha256:");
+    if (at > -1) return s.slice(0, at) + "@sha256:" + s.slice(at + 8, at + 15) + "…";
+    if (/^[0-9a-f]{40}$/.test(s)) return s.slice(0, 7) + "…";  // bare git SHA pin
+    return s.length > 46 ? s.slice(0, 45) + "…" : s;
+  }
+
+  function renderChangeStats() {
+    if (!changesets.length) return;
+    var bots = 0;
+    var repos = {};
+    var oldest = Infinity;
+    var newest = 0;
+    changesets.forEach(function (c) {
+      if (isBot(c.author)) bots += 1;
+      repos[repoName(c.repo)] = true;
+      var t = new Date(c.committedAt).getTime();
+      if (t < oldest) oldest = t;
+      if (t > newest) newest = t;
+    });
+    var days = Math.max((newest - oldest) / DAY, 1);
+
+    function tile(key, value) {
+      var el = document.querySelector('.auto-tile[data-auto="' + key + '"] .auto-value');
+      if (el) el.textContent = value;
+    }
+    tile("bots", Math.round(bots / changesets.length * 100) + "%");
+    tile("count", String(changesets.length));
+    tile("rate", (changesets.length / days).toFixed(1));
+    tile("repos", String(Object.keys(repos).length));
+  }
+
+  function renderChangeFeed() {
+    var feed = document.getElementById("change-feed");
+    if (!feed) return;
+
+    changesets.slice(feedRendered, feedRendered + FEED_PAGE).forEach(function (c) {
+      var li = document.createElement("li");
+
+      var head = document.createElement("div");
+      head.className = "feed-head";
+
+      var impact = document.createElement("span");
+      impact.className = "impact " + (c.impact || "other");
+      impact.textContent = c.impact || "other";
+      head.appendChild(impact);
+
+      var repo = document.createElement("span");
+      repo.className = "feed-repo";
+      repo.textContent = repoName(c.repo);
+      head.appendChild(repo);
+
+      (c.risk || []).forEach(function (r) {
+        var chip = document.createElement("span");
+        chip.className = "risk-chip";
+        chip.textContent = "⚠ " + r;
+        head.appendChild(chip);
+      });
+
+      var when = document.createElement("span");
+      when.className = "feed-when";
+      when.textContent = relTime(c.committedAt);
+      when.title = c.committedAt;
+      head.appendChild(when);
+      li.appendChild(head);
+
+      var subject = document.createElement("p");
+      subject.className = "feed-subject";
+      subject.textContent = c.subject || c.commitSha.slice(0, 12);
+      li.appendChild(subject);
+
+      var by = document.createElement("div");
+      by.className = "feed-by";
+      var author = document.createElement("span");
+      if (isBot(c.author)) author.className = "bot";
+      author.textContent = c.author;
+      by.appendChild(author);
+      by.appendChild(document.createTextNode(
+        " · " + c.commitSha.slice(0, 7) + ((c.issueRefs && c.issueRefs.length) ? " · " + c.issueRefs.join(" ") : "")
+      ));
+      li.appendChild(by);
+
+      if (c.changes && c.changes.length) {
+        var deltas = document.createElement("ul");
+        deltas.className = "deltas";
+        c.changes.slice(0, 4).forEach(function (ch) {
+          var row = document.createElement("li");
+          var field = document.createElement("span");
+          field.className = "delta-field";
+          field.textContent = ch.field + (ch.key ? "/" + ch.key : "");
+          row.appendChild(field);
+
+          if (ch.changeType === "modified") {
+            var oldEl = document.createElement("span");
+            oldEl.className = "delta-old";
+            oldEl.textContent = shortValue(ch.oldValue);
+            oldEl.title = String(ch.oldValue);
+            var arrow = document.createElement("span");
+            arrow.className = "delta-arrow";
+            arrow.textContent = "→";
+            var newEl = document.createElement("span");
+            newEl.className = "delta-new";
+            newEl.textContent = shortValue(ch.newValue);
+            newEl.title = String(ch.newValue);
+            row.appendChild(oldEl);
+            row.appendChild(arrow);
+            row.appendChild(newEl);
+          } else {
+            var val = document.createElement("span");
+            val.className = ch.changeType === "removed" ? "delta-old" : "delta-new";
+            var raw = ch.changeType === "removed" ? ch.oldValue : ch.newValue;
+            val.textContent = (ch.changeType === "removed" ? "− " : "+ ") + shortValue(raw);
+            val.title = String(raw);
+            row.appendChild(val);
+          }
+
+          var kind = document.createElement("span");
+          kind.className = "delta-kind";
+          kind.textContent = ch.kind;
+          row.appendChild(kind);
+          deltas.appendChild(row);
+        });
+        if (c.changes.length > 4) {
+          var more = document.createElement("li");
+          more.textContent = "+ " + (c.changes.length - 4) + " more tracked values";
+          deltas.appendChild(more);
+        }
+        li.appendChild(deltas);
+      }
+
+      feed.appendChild(li);
+    });
+
+    feedRendered = Math.min(feedRendered + FEED_PAGE, changesets.length);
+
+    var moreBtn = document.getElementById("feed-more");
+    var note = document.getElementById("feed-note");
+    if (moreBtn) moreBtn.hidden = feedRendered >= changesets.length && !nextCursor;
+    if (note) {
+      note.className = "feed-note";
+      note.textContent = "showing " + feedRendered + " of " + changesets.length + " loaded" +
+        (nextCursor ? " · more behind the cursor" : " · end of the feed");
+    }
+  }
+
+  function fetchChanges(cursor) {
+    var url = CHANGES_API + "?limit=50" + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "");
+    var span = Trace.start("GET /api/changes/changesets", {
+      service: "changes-api", kind: "CLIENT",
+      attrs: {
+        "http.method": "GET",
+        "peer.service": "change-tracking-dashboard",
+        "changes.page_size": 50,
+        "changes.paginated": cursor ? "cursor follow-up" : "first page"
+      }
+    });
+
+    return fetch(url, { headers: { "Accept": "application/json" } })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (body) {
+        span.end({ attrs: { "http.status_code": 200, "changes.returned": (body.changesets || []).length } });
+        changesets = changesets.concat(body.changesets || []);
+        // Follow nextCursor until it comes back empty — a short page is not the last page.
+        nextCursor = body.nextCursor || null;
+        renderChangeStats();
+        renderChangeFeed();
+      })
+      .catch(function (err) {
+        span.end({ status: "ERROR", attrs: { "error.message": String(err.message || err) } });
+        var note = document.getElementById("feed-note");
+        if (note) {
+          note.className = "feed-note err";
+          note.textContent = "change feed unreachable (" + (err.message || err) + ") — the dashboard is a " +
+            "single replica on free-tier hardware, so this section fails open rather than inventing history.";
+        }
+        var moreBtn = document.getElementById("feed-more");
+        if (moreBtn) moreBtn.hidden = true;
+      });
+  }
+
+  function initChanges() {
+    var feed = document.getElementById("change-feed");
+    if (!feed || typeof fetch !== "function") return;
+
+    var moreBtn = document.getElementById("feed-more");
+    if (moreBtn) {
+      moreBtn.addEventListener("click", function () {
+        if (feedRendered < changesets.length) { renderChangeFeed(); return; }
+        if (!nextCursor) return;
+        moreBtn.disabled = true;
+        fetchChanges(nextCursor).then(function () { moreBtn.disabled = false; });
+      });
+    }
+
+    if (!("IntersectionObserver" in window)) { fetchChanges(null); return; }
+    var io = new IntersectionObserver(function (entries) {
+      if (!entries[0].isIntersecting) return;
+      io.disconnect();
+      fetchChanges(null);
+    }, { rootMargin: "300px" });
+    io.observe(feed);
+  }
+
   /* ================= terminal: observability commands ================= */
   function cmdTrace() {
     var spans = Trace.spans();
@@ -1147,6 +1387,31 @@
     print("computed client-side from the GitHub API — no cached numbers, no claims.", "line-warn");
   }
 
+  function cmdChanges(repoFilter) {
+    if (!changesets.length) {
+      print("change feed not loaded yet — scroll to # changes.feed to trigger the query.", "line-warn");
+      return;
+    }
+    var rows = changesets.filter(function (c) {
+      return !repoFilter || repoName(c.repo).indexOf(repoFilter) > -1;
+    });
+    if (!rows.length) {
+      print("no changesets for repo matching '" + repoFilter + "'", "line-err");
+      print("tracked: " + Object.keys(changesets.reduce(function (acc, c) {
+        acc[repoName(c.repo)] = true; return acc;
+      }, {})).join(", "));
+      return;
+    }
+    print(pad("IMPACT", 11) + pad("REPO", 30) + pad("WHEN", 13) + "SUBJECT");
+    rows.slice(0, 12).forEach(function (c) {
+      var cls = c.impact === "major" ? "line-err" : (c.impact === "minor" ? "line-warn" : "line-ok");
+      print(pad(c.impact, 11) + pad(repoName(c.repo), 30) + pad(relTime(c.committedAt), 13) +
+        (c.subject || c.commitSha.slice(0, 12)).slice(0, 60), cls);
+    });
+    print("");
+    print("showing " + Math.min(12, rows.length) + " of " + rows.length + " loaded · source: changes.dackota.com", "line-warn");
+  }
+
   /* ================= boot ================= */
   document.addEventListener("DOMContentLoaded", function () {
     var year = document.getElementById("year");
@@ -1160,5 +1425,6 @@
     initSlo();
     initVitals();
     initDora();
+    initChanges();
   });
 })();
