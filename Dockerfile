@@ -16,4 +16,19 @@ COPY nginx.conf /etc/nginx/nginx.conf
 COPY index.html favicon.svg /usr/share/nginx/html/
 COPY assets/ /usr/share/nginx/html/assets/
 
+# Asset URLs carry the release version. The filenames aren't content-hashed
+# (no build step), and index.html is served no-cache while /assets/ is cached
+# for a week — so without this, a returning visitor gets new HTML against a
+# stale app.js until their cache expires. release-please writes the version
+# into the manifest in the same commit that cuts the release, so reading it
+# here needs no CI wiring. If the substitution ever fails the literal
+# placeholder survives in the URL, which still resolves — the query string is
+# not part of $uri, so try_files serves the file either way.
+COPY .release-please-manifest.json /tmp/manifest.json
+RUN ASSET_VER="$(sed -n 's/.*"\.": *"\([^"]*\)".*/\1/p' /tmp/manifest.json)" && \
+    test -n "$ASSET_VER" && \
+    sed -i "s|__ASSET_VER__|${ASSET_VER}|g" /usr/share/nginx/html/index.html && \
+    ! grep -q "__ASSET_VER__" /usr/share/nginx/html/index.html && \
+    rm /tmp/manifest.json
+
 EXPOSE 8080
