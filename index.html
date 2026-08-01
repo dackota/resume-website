@@ -157,7 +157,7 @@
     <h2 id="terminal-h"><span class="section-kicker"># kubectl.exec</span>You have shell access. Poke around.</h2>
     <p class="section-sub">
       A resume you can query. Try <code>help</code>, <code>kubectl get jobs</code>,
-      <code>argocd app sync career</code>, or <code>sudo hire dackota</code>.
+      <code>argocd app sync career</code>, <code>trace</code>, or <code>sudo hire dackota</code>.
     </p>
 
     <div class="term-window term-interactive">
@@ -222,6 +222,113 @@
   </div>
 </section>
 
+<!-- ======================= TRACE EXPLORER ======================= -->
+<section class="section" id="trace" aria-labelledby="trace-h">
+  <div class="wrap">
+    <h2 id="trace-h"><span class="section-kicker"># otel.trace</span>Your visit, as a distributed trace</h2>
+    <p class="section-sub">
+      This page is instrumented like a service I'd run in production. Every section you read, every
+      stage you click, every command you type opens a span — with real durations, attributes, and
+      status codes. Select a span to inspect it.
+    </p>
+
+    <div class="term-window">
+      <div class="term-bar">
+        <span class="term-dot red"></span><span class="term-dot yellow"></span><span class="term-dot green"></span>
+        <span class="term-title">trace explorer — head sampling 100%</span>
+      </div>
+      <div class="trace-body">
+        <div class="trace-meta" id="trace-meta"></div>
+        <div class="trace-scroll">
+          <div class="waterfall" id="waterfall" role="list" aria-label="Spans in this trace"></div>
+        </div>
+        <div class="trace-attrs" id="trace-attrs"></div>
+      </div>
+    </div>
+
+    <div class="trace-actions">
+      <button class="btn" id="trace-copy" type="button">Copy trace ID</button>
+      <button class="btn" id="trace-export" type="button">Export OTLP JSON</button>
+      <span class="trace-note" id="trace-note">held in memory only — no beacon, no cookie, no storage, nothing leaves your browser</span>
+    </div>
+    <pre class="otlp" id="otlp-out" hidden></pre>
+  </div>
+</section>
+
+<!-- ======================= SLO + DORA ======================= -->
+<section class="section section-alt" id="slo" aria-labelledby="slo-h">
+  <div class="wrap">
+    <h2 id="slo-h"><span class="section-kicker"># slo.dashboard</span>This session has an SLO. Here's how it's doing.</h2>
+    <p class="section-sub">
+      The same thing I taught 20 engineers in Japan, pointed at this page: an objective, an indicator
+      measured from real spans, and an error budget that burns when the page fails you.
+    </p>
+
+    <div class="slo-panel">
+      <div class="slo-head">
+        <span class="slo-title">SLO · 99.9% of interactions complete within their latency objective</span>
+        <span class="slo-verdict" id="slo-verdict">measuring…</span>
+      </div>
+      <div class="budget-bar"><span class="budget-fill" id="budget-fill"></span></div>
+      <div class="slo-facts" id="slo-facts">
+        <span>good <b id="sli-good">0</b></span>
+        <span>total <b id="sli-total">0</b></span>
+        <span>SLI <b id="sli-pct">—</b></span>
+        <span>error budget left <b id="budget-left">100%</b></span>
+      </div>
+      <p class="slo-def">
+        Every instrumented interaction carries a latency objective — 50 ms for a pipeline stage click or a
+        freight promotion, 100 ms for a shell command. Animations and dwell time don't count, because
+        neither is a request. A span that misses its objective, or exits non-zero, burns budget.
+        Go break it: <code>rm -rf /</code> in the shell above
+        gets denied by policy, and a denied request is still a failed request.
+      </p>
+    </div>
+
+    <h3 class="sub-h" id="vitals-h">Real user monitoring — your actual Core Web Vitals</h3>
+    <div class="vitals-grid" id="vitals-grid" aria-labelledby="vitals-h">
+      <div class="vital" data-vital="lcp"><span class="vital-name">LCP</span><span class="vital-value">—</span><span class="vital-note">largest contentful paint · good ≤ 2.5s</span></div>
+      <div class="vital" data-vital="inp"><span class="vital-name">INP</span><span class="vital-value">—</span><span class="vital-note">interaction to next paint · good ≤ 200ms</span></div>
+      <div class="vital" data-vital="cls"><span class="vital-name">CLS</span><span class="vital-value">—</span><span class="vital-note">cumulative layout shift · good ≤ 0.1</span></div>
+      <div class="vital" data-vital="ttfb"><span class="vital-name">TTFB</span><span class="vital-value">—</span><span class="vital-note">time to first byte · good ≤ 800ms</span></div>
+    </div>
+
+    <h3 class="sub-h" id="dora-h">Delivery performance — DORA, computed live from this site's own repo</h3>
+    <p class="section-sub dora-sub">
+      Not a claim: your browser calls the GitHub API for this repository's releases and commits and
+      does the math on the spot. Definitions are printed with the numbers, because a DORA metric
+      without its definition is a vanity metric.
+    </p>
+    <div class="dora-grid" id="dora-grid" aria-labelledby="dora-h">
+      <div class="dora" data-dora="freq">
+        <span class="dora-value">—</span>
+        <span class="dora-name">deployment frequency</span>
+        <span class="dora-def">releases published ÷ weeks observed</span>
+        <span class="dora-band"></span>
+      </div>
+      <div class="dora" data-dora="lead">
+        <span class="dora-value">—</span>
+        <span class="dora-name">lead time for changes</span>
+        <span class="dora-def">median commit authored → first release containing it</span>
+        <span class="dora-band"></span>
+      </div>
+      <div class="dora" data-dora="cfr">
+        <span class="dora-value">—</span>
+        <span class="dora-name">change failure rate</span>
+        <span class="dora-def">releases followed by a revert ÷ releases</span>
+        <span class="dora-band"></span>
+      </div>
+      <div class="dora" data-dora="mttr">
+        <span class="dora-value">—</span>
+        <span class="dora-name">time to restore</span>
+        <span class="dora-def">median broken release → the release that fixed it</span>
+        <span class="dora-band"></span>
+      </div>
+    </div>
+    <p class="dora-source" id="dora-source">querying api.github.com/repos/dackota/resume-website …</p>
+  </div>
+</section>
+
 <!-- ======================= CHANGELOG ======================= -->
 <section class="section" id="changelog" aria-labelledby="changelog-h">
   <div class="wrap">
@@ -273,6 +380,10 @@
     <p class="footer-copy">© <span id="year">2026</span> Dackota Johnson · dackota.j@gmail.com · (480) 603-6579</p>
   </div>
 </footer>
+
+<a class="trace-pill" id="trace-pill" href="#trace" hidden>
+  <span class="trace-pill-dot"></span><span id="trace-pill-count">0 spans</span>
+</a>
 
 <script src="/assets/app.js"></script>
 </body>
