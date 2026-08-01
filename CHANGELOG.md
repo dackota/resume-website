@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/dackota/resume-website/compare/v1.3.1...v1.3.2) (2026-08-01)
+
+
+### Bug Fixes
+
+* repalette the github span bar off the red family ([#21](https://github.com/dackota/resume-website/issues/21)) ([11da5b7](https://github.com/dackota/resume-website/commit/11da5b73246758f408e62b8f9459ea574770472f))
+
 ## [1.3.1](https://github.com/dackota/resume-website/compare/v1.3.0...v1.3.1) (2026-08-01)
 
 
