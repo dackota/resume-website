@@ -427,6 +427,69 @@ code {
 .dora-source { font-family: var(--mono); font-size: 0.73rem; color: var(--muted); margin: 1rem 0 0; word-break: break-word; }
 .dora-source.err { color: var(--amber); }
 
+/* ---------- live change feed ---------- */
+.auto-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 0.9rem; margin-bottom: 1.8rem;
+}
+.auto-tile {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: 0.2rem;
+}
+.auto-value {
+  font-family: var(--mono); font-size: 1.7rem; font-weight: 700;
+  color: var(--green); letter-spacing: -0.02em; line-height: 1.2;
+}
+.auto-label { color: var(--text); font-size: 0.85rem; }
+.auto-def { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-top: 0.2rem; }
+
+.feed { list-style: none; margin: 0; padding: 0; }
+.feed li {
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.85rem 1rem; margin-bottom: 0.6rem;
+}
+.feed-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+.feed-repo { font-family: var(--mono); font-size: 0.78rem; color: var(--cyan); }
+.feed-when { margin-left: auto; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+.feed-subject { font-size: 0.92rem; margin: 0 0 0.15rem; word-break: break-word; }
+.feed-by { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+.feed-by .bot { color: var(--violet); }
+
+.impact {
+  font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase;
+  letter-spacing: 0.04em; border-radius: 999px; padding: 0.1rem 0.55rem;
+  border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
+}
+.impact.major { color: var(--red); border-color: rgba(248, 113, 113, 0.45); }
+.impact.minor { color: var(--amber); border-color: rgba(251, 191, 36, 0.4); }
+.impact.patch { color: var(--green); border-color: rgba(34, 197, 94, 0.4); }
+.impact.downgrade { color: var(--violet); border-color: rgba(196, 181, 253, 0.4); }
+
+.risk-chip {
+  font-family: var(--mono); font-size: 0.68rem;
+  border: 1px solid rgba(248, 113, 113, 0.45); color: var(--red);
+  border-radius: 999px; padding: 0.1rem 0.55rem; white-space: nowrap;
+}
+
+.deltas { list-style: none; margin: 0.5rem 0 0; padding: 0.5rem 0 0; border-top: 1px solid var(--border); }
+.deltas li {
+  background: none; border: 0; border-radius: 0; margin: 0; padding: 0.15rem 0;
+  font-family: var(--mono); font-size: 0.73rem; color: var(--muted);
+  display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: baseline;
+}
+.delta-field { color: var(--amber); }
+.delta-old { color: var(--muted); text-decoration: line-through; word-break: break-all; }
+.delta-new { color: var(--green); word-break: break-all; }
+.delta-arrow { color: var(--green-dim); }
+.delta-kind {
+  margin-left: auto; font-size: 0.68rem; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px; padding: 0 0.5rem;
+}
+
+.feed-actions { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin-top: 1rem; }
+.feed-note { font-family: var(--mono); font-size: 0.73rem; color: var(--muted); }
+.feed-note.err { color: var(--amber); }
+
 /* ---------- changelog ---------- */
 .changelog { list-style: none; margin: 1.8rem 0 0; padding: 0; position: relative; }
 .changelog li {

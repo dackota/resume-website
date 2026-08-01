@@ -329,6 +329,48 @@
   </div>
 </section>
 
+<!-- ======================= LIVE CHANGE FEED ======================= -->
+<section class="section" id="changes" aria-labelledby="changes-h">
+  <div class="wrap">
+    <h2 id="changes-h"><span class="section-kicker"># changes.feed</span>The platform I run when nobody is paying me</h2>
+    <p class="section-sub">
+      Live from <a href="https://changes.dackota.com" rel="noopener">changes.dackota.com</a> — a Go service
+      I wrote that polls my config repos, extracts tracked values, and classifies every change by impact
+      and risk. Below is what it has actually seen: real commits, real version deltas, no screenshots.
+    </p>
+
+    <div class="auto-grid">
+      <div class="auto-tile" data-auto="bots">
+        <span class="auto-value">—</span>
+        <span class="auto-label">of changes opened and merged by automation</span>
+        <span class="auto-def">Renovate and release-please, unattended</span>
+      </div>
+      <div class="auto-tile" data-auto="count">
+        <span class="auto-value">—</span>
+        <span class="auto-label">changesets ingested in the window</span>
+        <span class="auto-def">every tracked-value change, not every commit</span>
+      </div>
+      <div class="auto-tile" data-auto="rate">
+        <span class="auto-value">—</span>
+        <span class="auto-label">changes per day across the platform</span>
+        <span class="auto-def">mean across the window loaded</span>
+      </div>
+      <div class="auto-tile" data-auto="repos">
+        <span class="auto-value">—</span>
+        <span class="auto-label">repositories under change tracking</span>
+        <span class="auto-def">charts, clusters, and this site</span>
+      </div>
+    </div>
+
+    <ol class="feed" id="change-feed" aria-live="polite"></ol>
+
+    <div class="feed-actions">
+      <button class="btn" id="feed-more" type="button" hidden>Load more (follow the cursor)</button>
+      <span class="feed-note" id="feed-note">querying the change feed…</span>
+    </div>
+  </div>
+</section>
+
 <!-- ======================= CHANGELOG ======================= -->
 <section class="section" id="changelog" aria-labelledby="changelog-h">
   <div class="wrap">
