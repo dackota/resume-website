@@ -342,7 +342,8 @@ code {
 .span-bar.svc-shell { background: #0e7490; }
 .span-bar.svc-career-api { background: #6d28d9; }
 .span-bar.svc-kargo { background: #b45309; }
-.span-bar.svc-github { background: #be185d; }
+/* Slate, not crimson: red is reserved for .err so a healthy span never reads as failed. */
+.span-bar.svc-github { background: #64748b; }
 .span-bar.open { opacity: 0.6; }
 .span-bar.err { background: var(--red); }
 .span-dur { text-align: right; color: var(--muted); font-size: 0.72rem; }
