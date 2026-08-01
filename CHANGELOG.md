@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/dackota/resume-website/compare/v1.2.1...v1.3.0) (2026-08-01)
+
+
+### Features
+
+* blast-radius inspector and impact heatmap with live API filters ([#15](https://github.com/dackota/resume-website/issues/15)) ([7bb54f5](https://github.com/dackota/resume-website/commit/7bb54f5bb5fe3b6f81e4d9ba1aee0596e36ef731))
+
+
+### Bug Fixes
+
+* freeze the trace clock between spans instead of tracking wall-clock ([#18](https://github.com/dackota/resume-website/issues/18)) ([057ce10](https://github.com/dackota/resume-website/commit/057ce10ee2af35efe502cc65579cef1e233a9f40))
+
 ## [1.2.1](https://github.com/dackota/resume-website/compare/v1.2.0...v1.2.1) (2026-08-01)
 
 
