@@ -2,7 +2,7 @@
 # works with readOnlyRootFilesystem + a writable /tmp — see nginx.conf).
 # Base image digest-pinned per the supply-chain convention shared with
 # consulting-spa and change-tracking-dashboard; bump tag+digest together.
-FROM nginxinc/nginx-unprivileged:1.31.3-alpine3.24@sha256:59ccf0943b0b8e8d9e6ea9039a39555730f544701a655c596f7df7d096c593f5
+FROM nginxinc/nginx-unprivileged:1.31.3-alpine3.24@sha256:a6c3ec0c0d249d68b0682df854d4a9e222b90fb607dc3fcf2f1d2fcbc85d347e
 
 # Build steps run as root because both of them write outside the runtime
 # user's reach: apk needs the package db, and the version substitution below
