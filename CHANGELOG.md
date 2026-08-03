@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/dackota/resume-website/compare/v1.3.2...v1.3.3) (2026-08-03)
+
+
+### Bug Fixes
+
+* **deps:** update nginxinc/nginx-unprivileged:1.31.3-alpine3.24 docker digest to a6c3ec0 ([#25](https://github.com/dackota/resume-website/issues/25)) ([8b34aea](https://github.com/dackota/resume-website/commit/8b34aea0b3c3a89389da06f53e0d8dbf9e79eb16))
+
 ## [1.3.2](https://github.com/dackota/resume-website/compare/v1.3.1...v1.3.2) (2026-08-01)
 
 
