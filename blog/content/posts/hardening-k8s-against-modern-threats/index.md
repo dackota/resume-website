@@ -16,17 +16,25 @@ goalposts have shifted. We have to move from reactive patching to proactive,
 architectural security.
 
 I recently took a look at a set of "Non-Negotiable Architectural Security
-Practices" (inspired by Project Glasswing), and it gave me some great
-inspiration for how to structure our Kubernetes environment.
+Practices" (inspired by [Project Glasswing](https://www.anthropic.com/glasswing)),
+and it gave me some great inspiration for how to structure our Kubernetes
+environment.
 
 Here's my take on how these principles actually translate into K8s reality.
 
-Quick context on where this comes from: Glasswing is Anthropic's defensive
-cybersecurity program, and in its first month participants reported over 10,000
-high or critical vulnerabilities in widely used software. Visa ran an AI system
-called Mythos against its own environment as part of it. Mythos found critical
-issues, but zero-trust controls and network segmentation kept any of them from
-turning into a real path in.
+Quick context on where this comes from. Glasswing is Anthropic's defensive
+cybersecurity program, built around Claude Mythos Preview — an unreleased
+frontier model good enough at finding and exploiting vulnerabilities to beat
+most humans at it. Anthropic gave access to launch partners and 40-odd other
+organizations that maintain critical infrastructure. Between them they've
+reported [more than ten thousand high or critical vulnerabilities](https://www.anthropic.com/research/glasswing-initial-update)
+in some of the most load-bearing software on the internet.
+
+Visa was one of the partners, and [wrote up what happened](https://corporate.visa.com/en/sites/visa-perspectives/security-trust/visa-cybersecurity-mythos-project-glasswing.html)
+when they pointed Mythos at their own environment. It found critical issues.
+None of them turned into a real path in, because zero-trust controls and
+network segmentation were already in the way. That's the part I find
+encouraging: the architecture did the work, not the response time.
 
 The takeaway I keep coming back to is that finding bugs stopped being the
 bottleneck. Verifying, disclosing, and patching them is the bottleneck now. If
