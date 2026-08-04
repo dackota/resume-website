@@ -110,7 +110,9 @@ jobs:
           # This post is a load-bearing fixture: CI asserts against it to prove
           # a real post rendered. Drafting or deleting it means updating these
           # two lines to point at another published post.
-          assert_contains "/blog/twelve-non-negotiables-kubernetes/" "Twelve Security Rules"
+          # No quotes in this substring on purpose: the title contains "Good
+          # Enough", which Hugo renders as typographic quotes.
+          assert_contains "/blog/twelve-non-negotiables-kubernetes/" "Hardening My K8s Cluster"
           assert_contains "/blog/twelve-non-negotiables-kubernetes/" "/assets/blog.css"
           # hello-world is draft, so Hugo must not emit it at all.
           assert_status "/blog/hello-world/" 404
