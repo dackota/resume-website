@@ -1,0 +1,72 @@
+# Hugo owns /blog/ and nothing else. index.html and the resume page are
+# hand-written and never templated — if Hugo is ever swapped out or breaks,
+# the resume site is untouched.
+#
+# Output is built into the image at /usr/share/nginx/html/blog/ (see Dockerfile).
+# There is no local Hugo install by design: the pinned tarball in the builder
+# stage is the only Hugo that ever runs, so local and CI cannot drift.
+
+baseURL = "https://me.dackota.com/blog/"
+locale = "en-us"
+title = "Dackota Johnson"
+
+# Posts are served from the blog root via the permalinks below, so the section
+# page Hugo would otherwise generate at /blog/posts/ is an orphan listing the
+# same posts as the home page at a URL nothing links to. Disabling the kind is
+# why there is no section.html template.
+disableKinds = ["section"]
+
+# robots.txt is only honoured at the domain root, which this site does not own
+# from here — the resume image serves /. Generating /blog/robots.txt would be
+# a file nothing reads.
+enableRobotsTXT = false
+
+# Posts are authored as page bundles under content/posts/<slug>/index.md so
+# images live next to the post that uses them, but they are served from the
+# blog root: /blog/<slug>/. Tag pages live under /blog/tags/, so a post
+# slugged "tags" would collide — the only reserved word here.
+[permalinks]
+  # :slugorcontentbasename, not :slug — :slug derives the URL from the *title*, so
+  # renaming a heading would silently move a published permalink. This honours
+  # an explicit `slug =` in frontmatter and otherwise uses the bundle directory
+  # name, which makes the directory the URL as documented in the README.
+  posts = "/:slugorcontentbasename/"
+
+# Only tags. Hugo enables a `categories` taxonomy by default, which would
+# generate an empty /blog/categories/ that nothing links to.
+[taxonomies]
+  tag = "tags"
+
+[params]
+  description = "Notes on platform engineering — GitOps delivery, Kubernetes at scale, and the boring reliability work in between."
+  # Link-preview card. Scrapers (LinkedIn, Slack, X) will not render SVG, so
+  # this is the one raster asset in the repo. Served same-origin under the
+  # existing img-src 'self'.
+  ogImage = "/assets/og.png"
+  resumeURL = "/"
+
+# A broken {{< ref >}} is a warning by default, which means a typo in an internal
+# link ships silently. Promoting it to an error makes the image build fail
+# instead — the CI smoke test cannot catch this, since a bad link still renders.
+refLinksErrorLevel = "ERROR"
+
+[markup]
+  [markup.highlight]
+    # MUST stay false. With noClasses = true, Chroma emits style="" attributes
+    # on every token, and the site's CSP is style-src 'self' with no
+    # 'unsafe-inline' — every highlighted block would render unstyled. The
+    # class definitions live in assets/blog.css.
+    noClasses = false
+    lineNos = false
+    tabWidth = 2
+  [markup.goldmark.renderer]
+    # Raw HTML in posts stays disabled: markdown is the authoring contract, and
+    # an escape hatch here is how a post eventually smuggles in an inline style
+    # or a third-party embed that the CSP then blocks at runtime.
+    unsafe = false
+
+# Templates assume the flat layouts/ lookup introduced in 0.146. A binary older
+# than that resolves none of them and would silently build an empty site.
+[module]
+  [module.hugoVersion]
+    min = "0.146.0"

@@ -67,11 +67,53 @@ jobs:
             esac
           }
 
+          assert_status() {
+            path="$1"; want="$2"; got=""
+            got=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080${path}")
+            [ "$got" = "$want" ] \
+              && echo "ok: GET ${path} -> ${got}" \
+              || fail "GET ${path} returned ${got}, wanted ${want}"
+          }
+
+          assert_header() {
+            path="$1"; header="$2"; needle="$3"; hdrs=""
+            # -D- with the body discarded; curl -I would send HEAD, which nginx
+            # answers without a body but also without exercising try_files the
+            # same way a real reader's GET does.
+            hdrs=$(curl -fsS -D- -o /dev/null "http://localhost:8080${path}") \
+              || fail "GET ${path} failed"
+            # Header names are case-insensitive on the wire, so compare folded.
+            lower=$(printf '%s' "$hdrs" | tr '[:upper:]' '[:lower:]')
+            want=$(printf '%s: %s' "$header" "$needle" | tr '[:upper:]' '[:lower:]')
+            case "$lower" in
+              *"$want"*) echo "ok: ${path} has ${header}: ${needle}" ;;
+              *) fail "${path} missing '${header}: ${needle}'; got: ${hdrs}" ;;
+            esac
+          }
+
           assert_contains "/" "Dackota Johnson"
           assert_contains "/" "Platform Engineering Lead"
           # SPA fallback: unknown paths serve the app shell, not a 404
           assert_contains "/some/deep/link" "Dackota Johnson"
           assert_contains "/assets/styles.css" "--green"
           assert_contains "/assets/app.js" "kubectl"
+
+          # --- blog ---
+          # The highest-value assertion here is the 404: a broken location
+          # /blog/ block does not error, it silently serves the resume with a
+          # 200. This is the exact counterpart to the SPA-fallback assertion
+          # above — together they pin where the fallback stops applying.
+          assert_status "/blog/no-such-post" 404
+          # Proves Hugo ran and its output landed where nginx expects; a
+          # misconfigured --destination yields a /blog/ that 404s everywhere.
+          assert_contains "/blog/" "Writing"
+          # hello-world is a load-bearing fixture: it is the oldest permalink
+          # and CI asserts against it. Deleting it means updating this line.
+          assert_contains "/blog/hello-world/" "Why this site has a blog now"
+          assert_contains "/blog/hello-world/" "/assets/blog.css"
+          assert_header "/blog/index.xml" "content-type" "application/rss+xml"
+          # The version stamp now covers Hugo output too — a blog page still
+          # carrying the literal placeholder means the find/sed pass missed it.
+          assert_status "/assets/blog.css" 200
 
           docker stop site
