@@ -4,6 +4,9 @@ date = 2026-08-04
 summary = "Twelve non-negotiable security practices, inspired by Project Glasswing, and what each one actually looks like in a Kubernetes cluster."
 tags = ["kubernetes", "security", "platform-engineering"]
 draft = false
+# Shipped in v1.5.0 under the old bundle name, so that permalink is public and
+# has to keep resolving. Hugo writes a redirect page at the old path.
+aliases = ["/twelve-non-negotiables-kubernetes/"]
 +++
 
 If you've been in the dev world long enough, you know the drill: security is
