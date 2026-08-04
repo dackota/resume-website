@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/dackota/resume-website/compare/v1.5.0...v1.6.0) (2026-08-04)
+
+
+### Features
+
+* rework the K8s security post intro and voice ([#34](https://github.com/dackota/resume-website/issues/34)) ([2b3b9bf](https://github.com/dackota/resume-website/commit/2b3b9bfeb182e50b83a4a6ab5f85ea33c2252bed))
+
 ## [1.5.0](https://github.com/dackota/resume-website/compare/v1.4.0...v1.5.0) (2026-08-04)
 
 
