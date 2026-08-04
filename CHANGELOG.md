@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/dackota/resume-website/compare/v1.4.0...v1.5.0) (2026-08-04)
+
+
+### Features
+
+* add Kubernetes post on the twelve Glasswing security rules ([#31](https://github.com/dackota/resume-website/issues/31)) ([aa7ca07](https://github.com/dackota/resume-website/commit/aa7ca079f9d185b9606f41738a869a06525a6340))
+
 ## [1.4.0](https://github.com/dackota/resume-website/compare/v1.3.3...v1.4.0) (2026-08-04)
 
 
