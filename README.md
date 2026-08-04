@@ -65,8 +65,10 @@ Notes:
 - Syntax highlighting emits CSS classes, not inline styles (`noClasses = false`),
   because the CSP is `style-src 'self'`. The token colours live in
   `assets/blog.css`.
-- `blog/content/posts/hello-world/` is a **load-bearing CI fixture** — the smoke
-  test asserts against it. Deleting it means updating `ci.yml`.
+- `blog/content/posts/twelve-non-negotiables-kubernetes/` is a **load-bearing CI
+  fixture** — the smoke test asserts against it to prove a real post rendered.
+  Drafting or deleting it means updating `ci.yml`. (`hello-world` held this role
+  until it was drafted; `ci.yml` now asserts it 404s.)
 - `/assets/og.png` (1200×630) is referenced as the link-preview image for every
   post. Until that file exists, shares render a text-only card.
 

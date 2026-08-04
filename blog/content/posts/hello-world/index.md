@@ -3,7 +3,7 @@ title = "Why this site has a blog now"
 date = 2026-08-04
 summary = "A placeholder first post — and the load-bearing fixture the CI smoke test asserts against."
 tags = ["meta", "platform-engineering"]
-draft = false
+draft = true
 +++
 
 This is a placeholder. It exists so there is something real at a real URL while
