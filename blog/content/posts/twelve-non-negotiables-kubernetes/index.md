@@ -1,42 +1,46 @@
 +++
-title = "Twelve Security Rules, Applied to Kubernetes"
+title = 'Beyond "Good Enough": Hardening My K8s Cluster Against Modern Threats'
 date = 2026-08-04
-summary = "The Project Glasswing report ends with twelve architecture rules it calls non-negotiable. Here is which Kubernetes control enforces each one, with the YAML."
+summary = "Twelve non-negotiable security practices, inspired by Project Glasswing, and what each one actually looks like in a Kubernetes cluster."
 tags = ["kubernetes", "security", "platform-engineering"]
 draft = false
 +++
 
-Project Glasswing is Anthropic's defensive cybersecurity program. It points
-frontier models at widely used software to see what they turn up. In the first
-month, participants reported more than 10,000 vulnerabilities rated high or
-critical.
+If you've been in the dev world long enough, you know the drill: security is
+usually an afterthought or a checklist we tackle at the very end of a sprint.
+But as AI-driven attacks move from "slow and steady" to "instantaneous," the
+goalposts have shifted. We have to move from reactive patching to proactive,
+architectural security.
 
-Visa took part as a test partner and ran an AI system called Mythos against its
-own environment. Mythos surfaced critical findings, but none of them turned into
-an exploited path. Zero-trust controls and network segmentation stopped the
-attempts before they mattered. Visa also open-sourced the harness it used, the
-Visa Vulnerability Agentic Harness.
+I recently took a look at a set of "Non-Negotiable Architectural Security
+Practices" (inspired by Project Glasswing), and it gave me some great
+inspiration for how to structure our Kubernetes environment.
 
-The conclusion is the part worth sitting with. Finding vulnerabilities is no
-longer the bottleneck. Verifying, disclosing, and patching them is. If your
-security posture rests on how fast you can ship a fix, you have built it on the
-one variable that is now moving against you.
+Here's my take on how these principles actually translate into K8s reality.
 
-The appendix lists twelve architecture and design rules and calls them
-non-negotiable. Most of them will be familiar. The useful exercise isn't
-agreeing with them, it's asking a narrower question about each: which control in
-the cluster actually enforces this, so a team shipping at 4pm on a Friday can't
+Quick context on where this comes from: Glasswing is Anthropic's defensive
+cybersecurity program, and in its first month participants reported over 10,000
+high or critical vulnerabilities in widely used software. Visa ran an AI system
+called Mythos against its own environment as part of it. Mythos found critical
+issues, but zero-trust controls and network segmentation kept any of them from
+turning into a real path in.
+
+The takeaway I keep coming back to is that finding bugs stopped being the
+bottleneck. Verifying, disclosing, and patching them is the bottleneck now. If
+your security story is "we patch fast," you've bet the whole thing on the one
+number that's moving in the wrong direction.
+
+So for each of the twelve, I'm asking the same question: what in the cluster
+actually enforces this, so that a team shipping at 4pm on a Friday can't just
 route around it?
-
-Here's how I answer that in Kubernetes.
 
 ## Secrets and identity
 
 *Rules 1 and 11: keep secrets out of code, and treat AI agents as identities.*
 
 Nothing sensitive lives in the manifest repo. Secrets sit in a secret manager,
-and External Secrets Operator reconciles them into Kubernetes Secrets at
-runtime. What gets committed is a reference:
+and External Secrets Operator pulls them into the cluster at runtime. What we
+actually commit is a pointer:
 
 ```yaml
 apiVersion: external-secrets.io/v1
@@ -57,16 +61,15 @@ spec:
         property: password
 ```
 
-Rotating that credential is a change in Vault. No pull request goes near it, and
-nobody has to remember to update a manifest.
+Rotating that password is a change in Vault. No PR, no manifest edit, nobody
+has to remember anything.
 
-The scanning half matters just as much. gitleaks runs pre-commit and again in
-CI. Be honest about which one does the work: the pre-commit hook is a courtesy
-to whoever is committing, and the required CI check is the thing that actually
-stops a leak from landing.
+The scanning side matters just as much, and it's worth being honest about which
+half does the work. gitleaks runs pre-commit and again in CI. The hook is a
+nice courtesy to whoever's committing. The required CI check is the thing that
+actually stops a leaked key from landing.
 
-Workloads authenticate with short-lived tokens rather than a static service
-account key mounted as a file:
+For workloads, short-lived tokens instead of a static JSON key on disk:
 
 ```yaml
 apiVersion: v1
@@ -77,12 +80,12 @@ metadata:
     iam.gke.io/gcp-service-account: payments@project.iam.gserviceaccount.com
 ```
 
-A JSON key sitting in a Secret never expires, survives being copied, and keeps
-working long after whoever created it has moved on. A projected token expires
-whether or not anyone is paying attention.
+A key file in a Secret never expires, copies cleanly, and keeps working long
+after whoever generated it has moved on. A projected token expires whether or
+not anyone's watching.
 
-Rule 11 is the one most platforms haven't caught up on. An agent calling your
-APIs is a principal, and it needs the same treatment any other principal gets:
+Rule 11 is the one I think most of us haven't caught up on yet. If an agent
+calls your APIs, it's a principal, and it gets treated like one:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -96,19 +99,19 @@ rules:
     verbs: ["get", "list"]        # read-only, one namespace, no exec
 ```
 
-The failure mode here is the shared `automation` account that picked up
-permissions over three years and shows up in the audit log as one
-indistinguishable actor. When an agent's credentials leak, you want two answers
-fast: what could it reach, and what did it reach. Both are IAM properties, and
-they only exist if you built them in.
+We all know the alternative, because we've all inherited it: the shared
+`automation` account that quietly collected permissions over three years and
+shows up in the audit log as one anonymous blob. When agent credentials leak,
+you want two answers fast — what could it reach, and what did it reach. Those
+are IAM properties. They only exist if you built them.
 
 ## Trust boundaries
 
 *Rules 2, 3, and 4: authorize server-side, stop treating "internal" as a
 boundary, enforce tenant isolation centrally.*
 
-Every namespace gets a default-deny NetworkPolicy. It's four lines and it
-changes the shape of the whole cluster:
+Every namespace gets a default-deny NetworkPolicy. It's four lines, and it
+changes the shape of the entire cluster:
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -121,15 +124,15 @@ spec:
   policyTypes: ["Ingress", "Egress"]
 ```
 
-Now pods reach what you've explicitly allowed and nothing else, which turns
-lateral movement into something an attacker has to configure rather than
-something the network hands over for free. The mesh handles mTLS on top of that,
-so a connection between two pods is authenticated instead of being trusted for
-having originated inside the cluster. That's rule 3 in one sentence: the pod
-next door is not a friend.
+Now pods reach what we've explicitly allowed and nothing else, which means
+lateral movement is something an attacker has to build rather than something
+the network hands over for free. Layer mesh mTLS on top and a pod-to-pod
+connection is authenticated, not trusted for the crime of having come from
+inside the cluster. That's rule 3 in a sentence: the pod next door is not your
+friend.
 
-Authorization decisions happen at the gateway and mesh layer, from central
-policy rather than code scattered across services:
+Authorization lives at the gateway and mesh layer, as policy, not sprinkled
+through application code:
 
 ```yaml
 apiVersion: security.istio.io/v1
@@ -149,27 +152,26 @@ spec:
             paths: ["/v1/charges"]
 ```
 
-The service gets a request that's already been authorized and doesn't get a
-vote. Rule 2 then holds even for the service whose authors were having a bad
-week.
+The service receives a request that's already been authorized and doesn't get a
+vote in the matter. Rule 2 holds even for the service somebody wrote at the end
+of a very long week.
 
-Tenant isolation is the same idea one level up. A tenant is a namespace with
-enforced edges: a ResourceQuota so it can't starve its neighbors,
-namespace-scoped RBAC so its credentials are inert everywhere else, and network
-policy so its pods can't reach sideways. No single Deployment can widen any of
-that, which is exactly what rule 4 is after. Isolation that depends on every
-microservice implementing it correctly has a hole in it somewhere. You just
-haven't found it yet.
+Tenant isolation is the same trick one level up. A tenant is a namespace with
+real edges: ResourceQuota so it can't starve its neighbors, namespace-scoped
+RBAC so its credentials are useless anywhere else, network policy so it can't
+reach sideways. Nothing a single Deployment can widen, which is the whole point
+of rule 4. If your isolation depends on every microservice getting it right,
+there's a gap in there somewhere. You just haven't found it yet.
 
 ## Admission control
 
 *Rules 5, 6, 7, 9, and 10.*
 
 Most of what's left lands here, because admission control is the one place a
-Kubernetes cluster gets to say no.
+Kubernetes cluster gets to say "no."
 
-Rule 10 wants security patterns centralized instead of copy-pasted, and a policy
-engine is that made literal:
+Rule 10 wants security patterns centralized instead of copy-pasted, and a
+policy engine is that idea made literal:
 
 ```yaml
 apiVersion: kyverno.io/v1
@@ -193,10 +195,10 @@ spec:
 ```
 
 One audited repo, every workload, read by everyone instead of reimplemented by
-everyone. Changing a rule is a single edit.
+everyone. Change a rule and it changes once.
 
 Rule 9 wants security decisions to fail closed. In a validating webhook that's
-one field:
+a single field:
 
 ```yaml
 webhooks:
@@ -205,14 +207,14 @@ webhooks:
     timeoutSeconds: 10
 ```
 
-Worth being deliberate about, because `Ignore` is the setting that never pages
-you and also the one that quietly turns an outage in your policy engine into an
-unguarded cluster.
+Be deliberate here. `Ignore` is the setting that never pages you, which is
+exactly why it's dangerous — it's also the setting that turns a bad afternoon
+for your policy engine into a completely unguarded cluster.
 
-Rule 6 says cryptography is either correct or unused. In practice that means TLS
-config is set once at the gateway, minimum versions and cipher suites included,
-with cert-manager issuing and rotating certificates. Image signing is the same
-family of problem, verified where it can't be skipped:
+Rule 6 says crypto is either correct or you don't use it. Practically, that
+means TLS config gets set once at the gateway, minimum versions and cipher
+suites included, with cert-manager handling issuance and rotation. Image
+signing is the same species of problem, checked where it can't be skipped:
 
 ```yaml
     - name: verify-signature
@@ -229,15 +231,15 @@ family of problem, verified where it can't be skipped:
                     issuer: "https://token.actions.githubusercontent.com"
 ```
 
-That makes "this artifact is the one we built" something the cluster checks,
-rather than a registry tag anyone with push access can move.
+Now "this image is the one we built" is something the cluster verifies, instead
+of a registry tag that anyone with push access can move.
 
-Rules 5 and 7 are mostly application-level, though the platform holds some of
-the line. Request schemas enforced at the gateway keep malformed input away from
-services that might parse it optimistically. The part of rule 7 worth
-internalizing is that agent output counts as input. A model response arriving at
-your API is external data that took an unusual route to get there, and it earns
-the same validation as anything a user typed.
+Rules 5 and 7 are mostly application-level, but the platform can still carry
+some of the weight. Request schemas at the gateway keep malformed input away
+from services that might parse it a little too eagerly. And the bit of rule 7
+worth tattooing somewhere: agent output is input. A model response hitting your
+API is external data that took a scenic route, and it gets validated exactly
+like anything a user typed.
 
 ## Logs without sensitive data
 
@@ -255,22 +257,22 @@ processors:
     summary: debug
 ```
 
-If redaction is a library each service is supposed to call, one service will
-eventually forget, and that service ships tokens into your log store. As a
-collector processor, a service can log a token and still not export one.
-App-level hygiene is good and I want it. I just don't want it to be the last
-thing standing between a bearer token and permanent searchable storage.
+If redaction is a library every service is supposed to remember to call, one of
+them will forget, and that one ships tokens straight into your log store. As a
+collector processor, a service can log a token and still not export one. I want
+good app-level hygiene too — I just don't want it to be the last thing standing
+between a bearer token and permanent, searchable storage.
 
-Log access is its own access control problem, too. Logs concentrate more
-sensitive material than most of the systems producing them, which puts retention
-limits and read permissions inside the security model rather than in the cost
-spreadsheet.
+Worth remembering that log access is its own access control problem. Logs
+concentrate more sensitive material than most of the systems producing them,
+which puts retention limits and read permissions squarely inside the security
+model, not in the cost spreadsheet.
 
 ## Removal over defense
 
 *Rule 12: design for absence.*
 
-The strongest control available is deletion, and Kubernetes gives you plenty to
+The strongest control available is deletion, and Kubernetes gives us plenty to
 delete.
 
 ```yaml
@@ -285,16 +287,16 @@ securityContext:
     type: RuntimeDefault
 ```
 
-Pair that with a distroless base image and there's no shell, no package manager,
-and nothing for an attacker to pivot through. Add capabilities back only when
-something genuinely needs them, which in practice is almost never. Attack
-surface that doesn't exist needs no monitoring.
+Pair that with a distroless base image and there's no shell, no package
+manager, and nothing to pivot through. Add capabilities back only when
+something genuinely needs them, which is almost never. Attack surface that
+doesn't exist needs no monitoring, no CVE triage, and no 3am page.
 
-The unglamorous half is cluster hygiene. CRDs from an operator you removed two
-years ago. A ClusterRoleBinding for an audit tool that no longer needs the
-access. An Ingress pointing at a Service with no endpoints and no owner. Every
-one of those is a live path nobody is watching, and finding them is a couple of
-commands:
+Then there's the unglamorous half: cluster hygiene. CRDs from an operator we
+removed two years ago. A ClusterRoleBinding for an audit tool that doesn't need
+the access anymore. An Ingress pointing at a Service with no endpoints and no
+owner. Every one of those is a live path nobody's watching, and finding them is
+a couple of commands:
 
 ```bash
 # bindings whose subjects no longer exist
@@ -309,23 +311,23 @@ kubectl get endpoints -A -o json | jq -r '
 ```
 
 Deleting things on a schedule is security work, and it's the cheapest security
-work on offer.
+work you'll ever do.
 
-## What connects them
+## What ties it together
 
-All twelve hold up better as cluster controls than as conventions, for the same
-reason every time: conventions have exceptions and admission controllers don't.
-A wiki page telling teams to add a default-deny NetworkPolicy gets you a cluster
-where most namespaces have one. A policy gets you a cluster where all of them
-do, and where the real exceptions are visible, named, and attributable to
-someone.
+All twelve hold up better as cluster controls than as team conventions, for the
+same reason every time: conventions have exceptions and admission controllers
+don't. A wiki page telling everyone to add a default-deny NetworkPolicy gets
+you a cluster where most namespaces have one. A policy gets you a cluster where
+all of them do, and where the real exceptions are visible, named, and owned by
+somebody.
 
-That last part is where the cost shows up, and it's worth saying out loud.
-Policy-as-code generates an exception queue, and somebody has to own it. When
-nobody does, the queue becomes a backlog, the backlog becomes pressure, and the
-pressure eventually produces a blanket exclusion that switches the control off
-without anyone deciding to. A control lasts about as long as the team's appetite
-for saying no.
+Which is where the cost shows up, and I'd rather say it out loud than pretend
+it isn't there. Policy-as-code creates an exception queue, and someone has to
+own that queue. When nobody does, it becomes a backlog, the backlog becomes
+pressure, and the pressure eventually produces a blanket exclusion that
+switches the control off without anyone really deciding to. A control lasts
+about as long as the team's appetite for saying no.
 
-Still worth it, in my view. Reviewing exceptions is work you can put in the
-calendar. The alternative shows up whenever it likes.
+Still worth it, in my view. Reviewing exceptions is work you can put on the
+calendar. The alternative shows up whenever it feels like it.
