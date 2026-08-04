@@ -107,10 +107,13 @@ jobs:
           # Proves Hugo ran and its output landed where nginx expects; a
           # misconfigured --destination yields a /blog/ that 404s everywhere.
           assert_contains "/blog/" "Writing"
-          # hello-world is a load-bearing fixture: it is the oldest permalink
-          # and CI asserts against it. Deleting it means updating this line.
-          assert_contains "/blog/hello-world/" "Why this site has a blog now"
-          assert_contains "/blog/hello-world/" "/assets/blog.css"
+          # This post is a load-bearing fixture: CI asserts against it to prove
+          # a real post rendered. Drafting or deleting it means updating these
+          # two lines to point at another published post.
+          assert_contains "/blog/twelve-non-negotiables-kubernetes/" "Twelve Security Rules"
+          assert_contains "/blog/twelve-non-negotiables-kubernetes/" "/assets/blog.css"
+          # hello-world is draft, so Hugo must not emit it at all.
+          assert_status "/blog/hello-world/" 404
           assert_header "/blog/index.xml" "content-type" "application/rss+xml"
           # The version stamp now covers Hugo output too — a blog page still
           # carrying the literal placeholder means the find/sed pass missed it.
