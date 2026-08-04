@@ -112,8 +112,11 @@ jobs:
           # two lines to point at another published post.
           # No quotes in this substring on purpose: the title contains "Good
           # Enough", which Hugo renders as typographic quotes.
-          assert_contains "/blog/twelve-non-negotiables-kubernetes/" "Hardening My K8s Cluster"
-          assert_contains "/blog/twelve-non-negotiables-kubernetes/" "/assets/blog.css"
+          assert_contains "/blog/hardening-k8s-against-modern-threats/" "Hardening My K8s Cluster"
+          assert_contains "/blog/hardening-k8s-against-modern-threats/" "/assets/blog.css"
+          # The bundle was renamed after v1.5.0 shipped the old permalink, so
+          # the alias page must keep redirecting or a public URL 404s.
+          assert_contains "/blog/twelve-non-negotiables-kubernetes/" "hardening-k8s-against-modern-threats"
           # hello-world is draft, so Hugo must not emit it at all.
           assert_status "/blog/hello-world/" 404
           assert_header "/blog/index.xml" "content-type" "application/rss+xml"
