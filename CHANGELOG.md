@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/dackota/resume-website/compare/v1.3.3...v1.4.0) (2026-08-04)
+
+
+### Features
+
+* add a blog at /blog, trim the resume page, and close out the GAAI role ([#29](https://github.com/dackota/resume-website/issues/29)) ([c0775ed](https://github.com/dackota/resume-website/commit/c0775ede12b54d27b6c991d87c35dcd3e78ec688))
+
 ## [1.3.3](https://github.com/dackota/resume-website/compare/v1.3.2...v1.3.3) (2026-08-03)
 
 
