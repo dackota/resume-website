@@ -1,0 +1,186 @@
+/* Blog styles — loaded alongside styles.css, never instead of it. The palette
+   variables, .wrap, .section, .btn, .skip-link and the base type all come from
+   styles.css; this file only adds what the blog needs.
+
+   Same constraints as the rest of the site: CSP style-src 'self' (no inline
+   styles anywhere, which is why the syntax-highlighting classes at the bottom
+   exist), no external fonts, dark ops-console aesthetic. */
+
+/* ---------- chrome ---------- */
+.blog-top {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+}
+.blog-top-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  padding-top: 0.9rem; padding-bottom: 0.9rem;
+}
+.blog-brand {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--text);
+  text-decoration: none;
+}
+.blog-brand:hover { color: var(--cyan); }
+.blog-brand-prompt { color: var(--green); margin-right: 0.4rem; }
+.blog-nav { display: flex; gap: 1.1rem; font-family: var(--mono); font-size: 0.8rem; }
+
+.blog-foot {
+  border-top: 1px solid var(--border);
+  padding: 1.6rem 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+/* ---------- headings ---------- */
+.blog-h1 {
+  font-size: clamp(1.6rem, 3.4vw, 2.2rem);
+  line-height: 1.25;
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+}
+.blog-h1 .section-kicker { display: block; }
+.blog-empty { color: var(--muted); font-family: var(--mono); }
+
+/* ---------- post list ---------- */
+.post-list { list-style: none; margin: 2rem 0 0; padding: 0; }
+.post-item {
+  border-top: 1px solid var(--border);
+  padding: 1.4rem 0;
+}
+.post-item:last-child { border-bottom: 1px solid var(--border); }
+.post-item-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+.post-item-title:hover { color: var(--cyan); }
+.post-summary { color: var(--muted); margin: 0.5rem 0 0; max-width: 68ch; }
+
+.post-meta {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+}
+.post-meta-lead { margin-bottom: 2rem; }
+.post-meta-sep { color: var(--border); }
+.post-tag {
+  color: var(--violet);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+}
+.post-tag:hover { border-color: var(--green-dim); color: var(--violet); }
+
+.tag-index { list-style: none; margin: 2rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.tag-index li { display: flex; align-items: center; gap: 0.35rem; }
+.tag-count { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+
+/* ---------- article body ----------
+   Measure is capped at ~72ch: the site's .wrap is 1060px, which is right for
+   a dashboard of cards and much too wide for running prose. */
+.post-body { max-width: 72ch; }
+.post-body > * + * { margin-top: 1.1rem; }
+.post-body h2,
+.post-body h3 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 2.6rem;
+  margin-bottom: 0.2rem;
+}
+.post-body h2 { font-size: 1.35rem; }
+.post-body h3 { font-size: 1.1rem; color: var(--cyan); }
+.post-body a { text-underline-offset: 2px; }
+.post-body ul, .post-body ol { padding-left: 1.3rem; }
+.post-body li + li { margin-top: 0.35rem; }
+.post-body img { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
+.post-body blockquote {
+  margin-left: 0; margin-right: 0;
+  padding: 0.2rem 0 0.2rem 1rem;
+  border-left: 2px solid var(--green-dim);
+  color: var(--muted);
+}
+.post-body hr { border: 0; border-top: 1px solid var(--border); margin: 2.4rem 0; }
+.post-body table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.post-body th, .post-body td { border: 1px solid var(--border); padding: 0.45rem 0.7rem; text-align: left; }
+.post-body th { background: var(--panel); font-weight: 600; }
+
+/* Code blocks. `code` inside a `pre` drops the inline pill styling that
+   styles.css gives standalone `code`. */
+.post-body pre {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.post-body pre code {
+  background: none; border: 0; padding: 0; font-size: inherit;
+}
+
+.post-nav {
+  display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  margin-top: 3rem; padding-top: 1.4rem;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.8rem;
+}
+.post-nav-next { margin-left: auto; text-align: right; }
+
+.blog-404 {
+  font-family: var(--mono); font-size: 0.85rem; color: var(--red);
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.9rem 1.1rem; overflow-x: auto;
+}
+
+/* Hugo's built-in pagination markup. */
+.pagination { display: flex; gap: 0.5rem; list-style: none; padding: 0; margin: 2.5rem 0 0; font-family: var(--mono); font-size: 0.8rem; }
+.pagination .page-item.active .page-link { color: var(--green); }
+.pagination .page-link { color: var(--muted); text-decoration: none; }
+.pagination .page-link:hover { color: var(--cyan); }
+
+/* ---------- syntax highlighting ----------
+   These classes exist because the CSP is style-src 'self' with no
+   'unsafe-inline'. Hugo's default (noClasses = true) emits a style="" attribute
+   on every token, which the browser would drop — highlighted code would render
+   as flat text. hugo.toml sets noClasses = false so Chroma emits these class
+   names instead, and the colours live here where the CSP can see them.
+   Deliberately a small subset: the palette has five accent colours, and a
+   40-token theme would just be five colours repeated. */
+.post-body .chroma { background: none; }
+.post-body .chroma .c,
+.post-body .chroma .cm,
+.post-body .chroma .c1,
+.post-body .chroma .cs { color: var(--muted); font-style: italic; }   /* comments */
+.post-body .chroma .k,
+.post-body .chroma .kd,
+.post-body .chroma .kn,
+.post-body .chroma .kr,
+.post-body .chroma .kt { color: var(--violet); }                       /* keywords */
+.post-body .chroma .s,
+.post-body .chroma .s1,
+.post-body .chroma .s2,
+.post-body .chroma .sb,
+.post-body .chroma .se { color: var(--green); }                        /* strings */
+.post-body .chroma .m,
+.post-body .chroma .mi,
+.post-body .chroma .mf { color: var(--amber); }                        /* numbers */
+.post-body .chroma .nf,
+.post-body .chroma .nb { color: var(--cyan); }                         /* functions/builtins */
+.post-body .chroma .nt { color: var(--cyan); }                         /* tags (html/yaml keys) */
+.post-body .chroma .na { color: var(--amber); }                        /* attributes */
+.post-body .chroma .err { color: var(--red); }
+.post-body .chroma .gd { color: var(--red); }                          /* diff removed */
+.post-body .chroma .gi { color: var(--green); }                        /* diff added */
+
+@media (prefers-reduced-motion: reduce) {
+  .post-item-title, .blog-brand { transition: none; }
+}

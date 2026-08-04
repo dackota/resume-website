@@ -9,6 +9,17 @@
     "minimumReleaseAge": null
   },
   "automergeStrategy": "squash",
+  "customManagers": [
+    {
+      "description": "Hugo builds the blog in the Dockerfile's builder stage from gohugoio's own release tarball, which no built-in datasource can see -- without this it would be the one dependency in the repo that rots silently.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^Dockerfile$/"],
+      "matchStrings": ["ARG HUGO_VERSION=(?<currentValue>\\S+)"],
+      "depNameTemplate": "gohugoio/hugo",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ],
   "packageRules": [
     {
       "description": "The nginx base image is the only dependency that reaches users, so its bump has to cut a release: commit it as fix: and release-please opens a release PR, the tag triggers publish.yml, and Renovate in the gitops repo rolls the new tag out. Held only 1 day rather than the repo-wide 5, because a base-image rebuild IS the security fix -- publish.yml fails a release on any HIGH/CRITICAL Grype finding, which is exactly what a stale base causes.",
@@ -30,6 +41,18 @@
       "description": "Never auto-merge a major bump; always leave it as a manual PR.",
       "matchUpdateTypes": ["major"],
       "automerge": false
+    },
+    {
+      "description": "Hugo, last so it wins: later packageRules override earlier ones, and the patch/minor automerge rule above would otherwise re-enable auto-merge for it. Renovate can bump HUGO_VERSION but cannot compute the tarball checksums, so HUGO_SHA256_AMD64 and HUGO_SHA256_ARM64 must be updated by hand in the PR -- until they are, the image build fails on `sha256sum -c`, which is the intended loud failure rather than a silent unverified download. Committed as fix: because a Hugo bump changes the HTML that reaches readers, so it has to cut a release.",
+      "matchDepNames": ["gohugoio/hugo"],
+      "automerge": false,
+      "semanticCommitType": "fix",
+      "prBodyNotes": [
+        "⚠️ Update `HUGO_SHA256_AMD64` and `HUGO_SHA256_ARM64` in the Dockerfile before merging, or the build will fail on checksum verification:",
+        "```",
+        "curl -sSL https://github.com/gohugoio/hugo/releases/download/v{{{newVersion}}}/hugo_{{{newVersion}}}_checksums.txt | grep -E 'linux-(amd64|arm64)\\.tar\\.gz$'",
+        "```"
+      ]
     }
   ]
 }

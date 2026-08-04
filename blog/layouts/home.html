@@ -1,0 +1,33 @@
+{{ define "main" }}
+  <h1 class="blog-h1"><span class="section-kicker"># blog.posts</span>Writing</h1>
+  <p class="section-sub">{{ .Site.Params.description }}</p>
+
+  {{/* Pagination is Hugo's default of 10 per page. It does nothing until the
+       eleventh post exists, and then it does the right thing without an edit. */}}
+  {{ $posts := where .Site.RegularPages "Section" "posts" }}
+  {{ $paginator := .Paginate $posts }}
+
+  {{ if not $paginator.Pages }}
+    <p class="blog-empty">No posts yet.</p>
+  {{ end }}
+
+  <ul class="post-list">
+    {{ range $paginator.Pages }}
+      <li class="post-item">
+        <a class="post-item-title" href="{{ .RelPermalink }}">{{ .Title }}</a>
+        <div class="post-meta">
+          <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006-01-02" }}</time>
+          <span class="post-meta-sep">·</span>
+          <span>{{ .ReadingTime }} min read</span>
+          {{ with .Params.tags }}
+            <span class="post-meta-sep">·</span>
+            {{ range . }}<a class="post-tag" href="{{ (printf "/tags/%s/" (urlize .)) | relURL }}">{{ . }}</a>{{ end }}
+          {{ end }}
+        </div>
+        {{ with .Params.summary }}<p class="post-summary">{{ . }}</p>{{ end }}
+      </li>
+    {{ end }}
+  </ul>
+
+  {{ template "_internal/pagination.html" . }}
+{{ end }}
