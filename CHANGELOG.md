@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/dackota/resume-website/compare/v1.7.0...v1.7.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* update blog content ([#38](https://github.com/dackota/resume-website/issues/38)) ([5665f8b](https://github.com/dackota/resume-website/commit/5665f8bdcd8269567167359dd2c43f1d4310185e))
+
 ## [1.7.0](https://github.com/dackota/resume-website/compare/v1.6.0...v1.7.0) (2026-08-05)
 
 
