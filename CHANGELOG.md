@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/dackota/resume-website/compare/v1.6.0...v1.7.0) (2026-08-05)
+
+
+### Features
+
+* rename the post bundle and link the Glasswing sources ([#36](https://github.com/dackota/resume-website/issues/36)) ([5f36ac9](https://github.com/dackota/resume-website/commit/5f36ac9dc3bee10b44134a029095256df2594fe8))
+
 ## [1.6.0](https://github.com/dackota/resume-website/compare/v1.5.0...v1.6.0) (2026-08-04)
 
 
