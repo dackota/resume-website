@@ -1,28 +1,21 @@
 +++
-title = 'Beyond "Good Enough": Hardening My K8s Cluster Against Modern Threats'
+title = 'Beyond "Good Enough": Hardening a K8s Cluster Against Modern Threats'
 date = 2026-08-04
 summary = "Twelve non-negotiable security practices, inspired by Project Glasswing, and what each one actually looks like in a Kubernetes cluster."
 tags = ["kubernetes", "security", "platform-engineering"]
 draft = false
-# Shipped in v1.5.0 under the old bundle name, so that permalink is public and
-# has to keep resolving. Hugo writes a redirect page at the old path.
 aliases = ["/twelve-non-negotiables-kubernetes/"]
 +++
 
 If you've been in the dev world long enough, you know the drill: security is
 usually an afterthought or a checklist we tackle at the very end of a sprint.
-But as AI-driven attacks move from "slow and steady" to "instantaneous," the
-goalposts have shifted. We have to move from reactive patching to proactive,
-architectural security.
+But as AI-driven attacks move from "slow and steady" to "instantaneous," we 
+have to move from reactive patching to proactive, architectural security.
 
-I recently took a look at a set of "Non-Negotiable Architectural Security
-Practices" (inspired by [Project Glasswing](https://www.anthropic.com/glasswing)),
-and it gave me some great inspiration for how to structure our Kubernetes
-environment.
+Visa recently published a [whitepaper](https://corporate.visa.com/content/dam/VCOM/corporate/visa-perspectives/security-and-trust/documents/project-glasswing.pdf) on their experience with Project Glasswing,
+where they took Anthropic's Mythos model and pointed it at their own systems. 
 
-Here's my take on how these principles actually translate into K8s reality.
-
-Quick context on where this comes from. Glasswing is Anthropic's defensive
+If you're unaware, Project Glasswing is Anthropic's defensive
 cybersecurity program, built around Claude Mythos Preview — an unreleased
 frontier model good enough at finding and exploiting vulnerabilities to beat
 most humans at it. Anthropic gave access to launch partners and 40-odd other
@@ -30,9 +23,8 @@ organizations that maintain critical infrastructure. Between them they've
 reported [more than ten thousand high or critical vulnerabilities](https://www.anthropic.com/research/glasswing-initial-update)
 in some of the most load-bearing software on the internet.
 
-Visa was one of the partners, and [wrote up what happened](https://corporate.visa.com/en/sites/visa-perspectives/security-trust/visa-cybersecurity-mythos-project-glasswing.html)
-when they pointed Mythos at their own environment. It found critical issues.
-None of them turned into a real path in, because zero-trust controls and
+When they pointed Mythos at their own environment it found critical issues but
+none of them turned into a real path in, because zero-trust controls and
 network segmentation were already in the way. That's the part I find
 encouraging: the architecture did the work, not the response time.
 
@@ -40,6 +32,24 @@ The takeaway I keep coming back to is that finding bugs stopped being the
 bottleneck. Verifying, disclosing, and patching them is the bottleneck now. If
 your security story is "we patch fast," you've bet the whole thing on the one
 number that's moving in the wrong direction.
+
+Their experiences led them to establish 12 non‑negotiable architectural security 
+practices:
+
+1. Secrets never live in code
+2. Authorization is server side, explicit, and
+mandatory
+3. “Internal” is not a security boundary
+4. Tenant isolation is centrally enforced
+5. No raw HTML or script rendering
+6. Cryptography is either correct or not used
+7. Inputs are hostile until proven otherwise:
+8. Sensitive data is never logged
+9. Security decisions fail closed
+10. Security patterns are centralized, not
+copy‑pasted
+11. AI agents are identities
+12. Design for absence
 
 So for each of the twelve, I'm asking the same question: what in the cluster
 actually enforces this, so that a team shipping at 4pm on a Friday can't just
@@ -218,8 +228,7 @@ webhooks:
     timeoutSeconds: 10
 ```
 
-Be deliberate here. `Ignore` is the setting that never pages you, which is
-exactly why it's dangerous — it's also the setting that turns a bad afternoon
+`Ignore` is the setting that never pages you, it's also the setting that turns a bad afternoon
 for your policy engine into a completely unguarded cluster.
 
 Rule 6 says crypto is either correct or you don't use it. Practically, that
@@ -329,16 +338,6 @@ work you'll ever do.
 All twelve hold up better as cluster controls than as team conventions, for the
 same reason every time: conventions have exceptions and admission controllers
 don't. A wiki page telling everyone to add a default-deny NetworkPolicy gets
-you a cluster where most namespaces have one. A policy gets you a cluster where
+you a cluster where some namespaces have one. A policy gets you a cluster where
 all of them do, and where the real exceptions are visible, named, and owned by
 somebody.
-
-Which is where the cost shows up, and I'd rather say it out loud than pretend
-it isn't there. Policy-as-code creates an exception queue, and someone has to
-own that queue. When nobody does, it becomes a backlog, the backlog becomes
-pressure, and the pressure eventually produces a blanket exclusion that
-switches the control off without anyone really deciding to. A control lasts
-about as long as the team's appetite for saying no.
-
-Still worth it, in my view. Reviewing exceptions is work you can put on the
-calendar. The alternative shows up whenever it feels like it.
