@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/dackota/resume-website/compare/v1.7.1...v1.8.0) (2026-08-12)
+
+
+### Features
+
+* export browser spans to Honeycomb over OTLP ([#41](https://github.com/dackota/resume-website/issues/41)) ([8175cdf](https://github.com/dackota/resume-website/commit/8175cdfd9cf79f5f9aaec05ee129de4cdc3a40db))
+
 ## [1.7.1](https://github.com/dackota/resume-website/compare/v1.7.0...v1.7.1) (2026-08-05)
 
 
