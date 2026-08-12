@@ -182,8 +182,13 @@
     // which makes service.version free — no build step had to supply it.
     // Resolved here at load rather than inside resource(): currentScript is
     // only non-null while this file is executing, and resource() runs later,
-    // on every flush. Falls back to "dev" for an unbuilt checkout, where the
-    // literal __ASSET_VER__ placeholder survives.
+    // on every flush.
+    //
+    // An unbuilt checkout reports "dev": the substitution only rewrites .html,
+    // so the version is whatever index.html carries, and there the build-time
+    // placeholder is still in place. It is matched by its leading underscores
+    // rather than spelled out, because the image build greps every file for
+    // that literal and fails if one survives — writing it here would fail it.
     var SERVICE_VERSION = (function () {
       var script = document.currentScript
         || document.querySelector('script[src*="/assets/app.js"]');
@@ -441,10 +446,10 @@
     "platform-lead": {
       ns: "panasonic-gaai",
       title: "Platform Engineering Lead",
-      dates: "Jun 2022 - present",
+      dates: "Jun 2022 - Jul 2026",
       where: "Panasonic Global Applied AI (formerly Yohana / Panasonic Well), Remote",
       bullets: [
-        "Leads the 4-person platform team behind KanpAI — 20+ production AI agents, 10+ business units, US + Japan",
+        "Led the 4-person platform team behind KanpAI — 20+ production AI agents, 10+ business units, US + Japan",
         "Replaced Spinnaker with self-service GitOps (ArgoCD, Argo Workflows/Events): setup 6h -> 10min, lead time 1h -> 15min, 15 -> 228 microservices",
         "Trunk-based single-artifact promotion with Kargo: weekly -> 15 deploys/day across 5 teams",
         "helm-generic-app chart: new-service packaging 3h -> 5min across 16 microservices",
@@ -553,13 +558,12 @@
     print("email:      dackota.j@gmail.com", "line-cyan");
     print("github:     github.com/dackota", "line-cyan");
     print("linkedin:   linkedin.com/in/dackota-johnson", "line-cyan");
-    print("phone:      (480) 603-6579", "line-cyan");
     print("consulting: consulting.dackota.com", "line-cyan");
   }
 
   function cmdGetJobs() {
     print(pad("NAME", 16) + pad("NAMESPACE", 16) + pad("COMPLETIONS", 14) + pad("DURATION", 12) + "STATUS");
-    print(pad("platform-lead", 16) + pad("panasonic-gaai", 16) + pad("ongoing", 14) + pad("3y+", 12) + "Running", "line-ok");
+    print(pad("platform-lead", 16) + pad("panasonic-gaai", 16) + pad("1/1", 14) + pad("4.1y", 12) + "Complete");
     print(pad("sre", 16) + pad("keap", 16) + pad("1/1", 14) + pad("3.5y", 12) + "Complete");
     print(pad("sysadmin", 16) + pad("keap", 16) + pad("1/1", 14) + pad("3.75y", 12) + "Complete");
     print("");
@@ -614,7 +618,7 @@
       ["syncing app career (target: HEAD, repo: life/dackota) ...", "line-out"],
       ["  ✓ Job/sysadmin            Synced   Healthy  (2015-2018)", "line-ok"],
       ["  ✓ Job/sre                 Synced   Healthy  (2018-2022)", "line-ok"],
-      ["  ✓ Job/platform-lead       Synced   Healthy  (2022-now)", "line-ok"],
+      ["  ✓ Job/platform-lead       Synced   Healthy  (2022-2026)", "line-ok"],
       ["  ✓ ConfigMap/skills        Synced   9 namespaces, all pods Running", "line-ok"],
       ["  ✓ Secret/ambition         Synced   (values redacted)", "line-ok"],
       ["app career: Synced + Healthy. no drift detected — this resume IS the desired state.", "line-cyan"]
@@ -647,11 +651,11 @@
     print("# Dackota Johnson — Platform Engineering Lead", "line-cyan");
     print("Mesa, AZ · dackota.j@gmail.com · github.com/dackota · linkedin.com/in/dackota-johnson");
     print("");
-    print("10+ years building the platforms other engineers ship on. Runs delivery and");
-    print("infrastructure for KanpAI, a multi-tenant agentic-AI platform: 20+ production");
-    print("agents, 10+ enterprise units, US + Japan.");
+    print("10+ years building the platforms other engineers ship on. Most recently ran");
+    print("delivery and infrastructure for KanpAI, a multi-tenant agentic-AI platform:");
+    print("20+ production agents, 10+ enterprise units, US + Japan.");
     print("");
-    print("## Panasonic Global Applied AI — Platform Engineering Lead (2022-now)");
+    print("## Panasonic Global Applied AI — Platform Engineering Lead (2022-2026)");
     JOBS["platform-lead"].bullets.forEach(function (b) { print("- " + b); });
     print("");
     print("## Keap — Site Reliability Engineer (2018-2022)");

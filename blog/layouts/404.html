@@ -1,0 +1,11 @@
+{{ define "main" }}
+  {{/* Served by nginx via `error_page 404 /blog/404.html` inside location
+       /blog/, so it carries a real 404 status. Without that block the site's
+       SPA fallback would answer a mistyped post URL with the resume page and
+       a 200 — invisible to a reader, wrong for a crawler. */}}
+  <h1 class="blog-h1"><span class="section-kicker"># status: 404</span>No such post</h1>
+  {{/* The page is static, so it cannot name the path that was requested —
+       nginx serves this same file for every miss under /blog/. */}}
+  <pre class="blog-404">Error from server (NotFound): post not found in namespace "blog"</pre>
+  <p><a href="{{ "/" | relURL }}">← back to the post list</a></p>
+{{ end }}

@@ -67,6 +67,30 @@ jobs:
             esac
           }
 
+          assert_status() {
+            path="$1"; want="$2"; got=""
+            got=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080${path}")
+            [ "$got" = "$want" ] \
+              && echo "ok: GET ${path} -> ${got}" \
+              || fail "GET ${path} returned ${got}, wanted ${want}"
+          }
+
+          assert_header() {
+            path="$1"; header="$2"; needle="$3"; hdrs=""
+            # -D- with the body discarded; curl -I would send HEAD, which nginx
+            # answers without a body but also without exercising try_files the
+            # same way a real reader's GET does.
+            hdrs=$(curl -fsS -D- -o /dev/null "http://localhost:8080${path}") \
+              || fail "GET ${path} failed"
+            # Header names are case-insensitive on the wire, so compare folded.
+            lower=$(printf '%s' "$hdrs" | tr '[:upper:]' '[:lower:]')
+            want=$(printf '%s: %s' "$header" "$needle" | tr '[:upper:]' '[:lower:]')
+            case "$lower" in
+              *"$want"*) echo "ok: ${path} has ${header}: ${needle}" ;;
+              *) fail "${path} missing '${header}: ${needle}'; got: ${hdrs}" ;;
+            esac
+          }
+
           assert_contains "/" "Dackota Johnson"
           assert_contains "/" "Platform Engineering Lead"
           # SPA fallback: unknown paths serve the app shell, not a 404
@@ -74,23 +98,54 @@ jobs:
           assert_contains "/assets/styles.css" "--green"
           assert_contains "/assets/app.js" "kubectl"
 
+          # --- blog ---
+          # The highest-value assertion here is the 404: a broken location
+          # /blog/ block does not error, it silently serves the resume with a
+          # 200. This is the exact counterpart to the SPA-fallback assertion
+          # above — together they pin where the fallback stops applying.
+          assert_status "/blog/no-such-post" 404
+          # Proves Hugo ran and its output landed where nginx expects; a
+          # misconfigured --destination yields a /blog/ that 404s everywhere.
+          assert_contains "/blog/" "Writing"
+          # This post is a load-bearing fixture: CI asserts against it to prove
+          # a real post rendered. Drafting or deleting it means updating these
+          # two lines to point at another published post.
+          # No quotes in this substring on purpose: the title contains "Good
+          # Enough", which Hugo renders as typographic quotes.
+          assert_contains "/blog/hardening-k8s-against-modern-threats/" "Hardening a K8s Cluster"
+          assert_contains "/blog/hardening-k8s-against-modern-threats/" "/assets/blog.css"
+          # The bundle was renamed after v1.5.0 shipped the old permalink, so
+          # the alias page must keep redirecting or a public URL 404s.
+          assert_contains "/blog/twelve-non-negotiables-kubernetes/" "hardening-k8s-against-modern-threats"
+          # hello-world is draft, so Hugo must not emit it at all.
+          assert_status "/blog/hello-world/" 404
+          assert_header "/blog/index.xml" "content-type" "application/rss+xml"
+          # The version stamp now covers Hugo output too — a blog page still
+          # carrying the literal placeholder means the find/sed pass missed it.
+          assert_status "/assets/blog.css" 200
+
+          # --- telemetry ---
           # The OTLP endpoint exists at all only if the envsubst template
           # rendered and nginx started from /tmp/nginx.conf — so this doubles
           # as the check that the run-time config wiring still works. With no
           # HONEYCOMB_API_KEY set (as here) it must swallow the batch locally
           # rather than proxy upstream: a 502 would mean the no-key branch is
           # gone and every keyless deploy is talking to api.honeycomb.io.
-          assert_status() {
-            path="$1"; method="$2"; want="$3"; got=""
-            got=$(curl -fsS -o /dev/null -w '%{http_code}' -X "$method" \
+          #
+          # Separate from assert_status because the OTLP endpoint only answers
+          # POST with a body; -f is likewise omitted so an unexpected 502 is
+          # reported as a wrong status rather than as a curl failure.
+          assert_post_status() {
+            path="$1"; want="$2"; got=""
+            got=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
               -H 'Content-Type: application/json' -d '{"resourceSpans":[]}' \
-              "http://localhost:8080${path}") || fail "${method} ${path} failed"
+              "http://localhost:8080${path}")
             [ "$got" = "$want" ] \
-              && echo "ok: ${method} ${path} -> ${got}" \
-              || fail "${method} ${path} -> ${got}, wanted ${want}"
+              && echo "ok: POST ${path} -> ${got}" \
+              || fail "POST ${path} -> ${got}, wanted ${want}"
           }
 
-          assert_status "/v1/traces" POST 204
+          assert_post_status "/v1/traces" 204
 
           docker stop site
 

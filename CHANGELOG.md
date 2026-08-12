@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.7.1](https://github.com/dackota/resume-website/compare/v1.7.0...v1.7.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* update blog content ([#38](https://github.com/dackota/resume-website/issues/38)) ([5665f8b](https://github.com/dackota/resume-website/commit/5665f8bdcd8269567167359dd2c43f1d4310185e))
+
+## [1.7.0](https://github.com/dackota/resume-website/compare/v1.6.0...v1.7.0) (2026-08-05)
+
+
+### Features
+
+* rename the post bundle and link the Glasswing sources ([#36](https://github.com/dackota/resume-website/issues/36)) ([5f36ac9](https://github.com/dackota/resume-website/commit/5f36ac9dc3bee10b44134a029095256df2594fe8))
+
+## [1.6.0](https://github.com/dackota/resume-website/compare/v1.5.0...v1.6.0) (2026-08-04)
+
+
+### Features
+
+* rework the K8s security post intro and voice ([#34](https://github.com/dackota/resume-website/issues/34)) ([2b3b9bf](https://github.com/dackota/resume-website/commit/2b3b9bfeb182e50b83a4a6ab5f85ea33c2252bed))
+
+## [1.5.0](https://github.com/dackota/resume-website/compare/v1.4.0...v1.5.0) (2026-08-04)
+
+
+### Features
+
+* add Kubernetes post on the twelve Glasswing security rules ([#31](https://github.com/dackota/resume-website/issues/31)) ([aa7ca07](https://github.com/dackota/resume-website/commit/aa7ca079f9d185b9606f41738a869a06525a6340))
+
+## [1.4.0](https://github.com/dackota/resume-website/compare/v1.3.3...v1.4.0) (2026-08-04)
+
+
+### Features
+
+* add a blog at /blog, trim the resume page, and close out the GAAI role ([#29](https://github.com/dackota/resume-website/issues/29)) ([c0775ed](https://github.com/dackota/resume-website/commit/c0775ede12b54d27b6c991d87c35dcd3e78ec688))
+
 ## [1.3.3](https://github.com/dackota/resume-website/compare/v1.3.2...v1.3.3) (2026-08-03)
 
 

@@ -261,44 +261,6 @@ code {
 .term-input::placeholder { color: #3d4f63; }
 .term-hint { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); margin-top: 0.7rem; }
 
-/* ---------- skills ---------- */
-.ns-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 0.9rem;
-  margin-top: 1.8rem;
-}
-.ns-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1rem 1.1rem;
-  transition: border-color 0.15s;
-}
-.ns-card:hover { border-color: var(--green-dim); }
-.ns-head {
-  font-family: var(--mono);
-  font-size: 0.9rem;
-  color: var(--cyan);
-  margin-bottom: 0.7rem;
-  display: flex; align-items: center; gap: 0.5rem;
-}
-.pod-dot {
-  width: 9px; height: 9px; border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 6px rgba(74, 222, 128, 0.7);
-}
-.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.chip {
-  font-size: 0.75rem;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.15rem 0.65rem;
-  white-space: nowrap;
-}
-
 /* ---------- trace explorer ---------- */
 .trace-body { padding: 1rem 1.1rem; font-family: var(--mono); font-size: 0.8rem; }
 .trace-meta { display: flex; gap: 1.2rem; flex-wrap: wrap; color: var(--muted); font-size: 0.74rem; margin-bottom: 0.9rem; }

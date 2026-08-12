@@ -1,0 +1,9 @@
+{{ define "main" }}
+  <h1 class="blog-h1"><span class="section-kicker"># kubectl get tags</span>Tags</h1>
+
+  <ul class="tag-index">
+    {{ range .Data.Terms.Alphabetical }}
+      <li><a class="post-tag" href="{{ .Page.RelPermalink }}">{{ .Page.Title }}</a> <span class="tag-count">{{ .Count }}</span></li>
+    {{ end }}
+  </ul>
+{{ end }}
