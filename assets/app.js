@@ -6,8 +6,10 @@
   var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* ================= tracing core =================
-     An in-memory OTel-shaped span store. Nothing is ever transmitted: no
-     beacon, no cookie, no storage. The trace dies with the tab. */
+     An OTel-shaped span store: real trace/span ids, real attributes, real
+     status codes. The trace explorer section renders it, and the exporter
+     below ships it to Honeycomb over OTLP. Still no cookies and no storage —
+     the trace id is random per tab and nothing here outlives the tab. */
   var Trace = (function () {
     var HEX = "0123456789abcdef";
     function hex(len) {
@@ -62,9 +64,17 @@
     function start(name, opts) {
       opts = opts || {};
       if (spans.length >= MAX_SPANS) {
+        // Evict a span the exporter has already shipped, in preference to one
+        // still waiting on a flush — dropping the latter would lose it before
+        // it ever reached Honeycomb. Falling back to any ended span keeps the
+        // cap hard even while a flush is pending.
+        var victim = -1;
         for (var i = 1; i < spans.length; i += 1) {
-          if (spans[i].end !== null) { spans.splice(i, 1); break; }
+          if (spans[i].end === null) continue;
+          if (spans[i].otlpSent) { victim = i; break; }
+          if (victim === -1) victim = i;
         }
+        if (victim > 0) spans.splice(victim, 1);
       }
       var span = {
         id: hex(16), parentId: opts.parentId || root.id, depth: opts.depth || 1,
@@ -105,6 +115,191 @@
       breached: breached,
       onChange: function (fn) { subscribers.push(fn); }
     };
+  })();
+
+  /* ================= OTLP export =================
+     The store above is genuine OpenTelemetry data, so it is shipped as genuine
+     OpenTelemetry: OTLP/HTTP with a JSON body, POSTed same-origin to
+     /v1/traces. nginx forwards that to Honeycomb and attaches the ingest key
+     there — which is why no key appears in this file, why the CSP is still
+     connect-src 'self', and why the unload path can use sendBeacon (it cannot
+     set headers). No SDK, no bundler, no dependency: the wire format is a
+     couple of nested objects and JSON.stringify.
+
+     What leaves the page: span names, durations, and the attributes the trace
+     explorer already shows you. No cookies, no storage, no identifiers, and
+     the URL is reduced to its path so a query string can't smuggle one out. */
+  (function () {
+    var ENDPOINT = "/v1/traces";
+    var SERVICE_NAME = "resume-website";
+    var FLUSH_MS = 5000;
+
+    var SPAN_KIND = { INTERNAL: 1, SERVER: 2, CLIENT: 3, PRODUCER: 4, CONSUMER: 5 };
+    var STATUS_CODE = { UNSET: 0, OK: 1, ERROR: 2 };
+
+    // Trace measures milliseconds from its own init; OTLP wants nanoseconds
+    // from the unix epoch. timeOrigin anchors the page to the epoch (the
+    // fallback covers browsers without it), and Trace.now() recovers Trace's
+    // offset from it without reaching into the closure above.
+    var epochBaseMs = (performance.timeOrigin || (Date.now() - performance.now()))
+      + (performance.now() - Trace.now());
+
+    function pad6(n) {
+      var s = String(n);
+      while (s.length < 6) s = "0" + s;
+      return s;
+    }
+
+    // ~1.7e18 nanoseconds does not survive a double, so the value is assembled
+    // as text: whole milliseconds since the epoch, then the sub-millisecond
+    // remainder as six digits.
+    function unixNano(relMs) {
+      var abs = epochBaseMs + relMs;
+      var ms = Math.floor(abs);
+      var sub = Math.round((abs - ms) * 1e6);
+      if (sub >= 1e6) { ms += 1; sub -= 1e6; }
+      return String(ms) + pad6(sub);
+    }
+
+    function anyValue(v) {
+      if (typeof v === "boolean") return { boolValue: v };
+      if (typeof v === "number") {
+        // OTLP intValue is a string because the field is a 64-bit int in proto.
+        return v % 1 === 0 ? { intValue: String(v) } : { doubleValue: v };
+      }
+      return { stringValue: String(v) };
+    }
+
+    function attributes(obj) {
+      var out = [];
+      Object.keys(obj).forEach(function (k) {
+        out.push({ key: k, value: anyValue(obj[k]) });
+      });
+      return out;
+    }
+
+    // The asset URLs carry the release version (substituted at image build),
+    // which makes service.version free — no build step had to supply it.
+    // Resolved here at load rather than inside resource(): currentScript is
+    // only non-null while this file is executing, and resource() runs later,
+    // on every flush. Falls back to "dev" for an unbuilt checkout, where the
+    // literal __ASSET_VER__ placeholder survives.
+    var SERVICE_VERSION = (function () {
+      var script = document.currentScript
+        || document.querySelector('script[src*="/assets/app.js"]');
+      var m = /[?&]v=([^&]+)/.exec((script && script.getAttribute("src")) || "");
+      if (!m || m[1].indexOf("__") === 0) return "dev";
+      return decodeURIComponent(m[1]);
+    })();
+
+    function resource() {
+      return {
+        attributes: attributes({
+          "service.name": SERVICE_NAME,
+          "service.version": SERVICE_VERSION,
+          "telemetry.sdk.name": "hand-rolled",
+          "telemetry.sdk.language": "webjs",
+          "browser.language": navigator.language || "unknown",
+          "browser.user_agent": navigator.userAgent,
+          "browser.viewport": window.innerWidth + "x" + window.innerHeight,
+          // Path only — never location.href. A query string or fragment is the
+          // one part of a URL a third party can choose, so it stays here.
+          "page.path": location.pathname
+        })
+      };
+    }
+
+    function toOtlpSpan(s, endMs) {
+      var attrs = {};
+      for (var k in s.attrs) {
+        if (s.attrs.hasOwnProperty(k)) attrs[k] = s.attrs[k];
+      }
+      // The SLO verdict is derived in the UI rather than stored on the span;
+      // sending it too means Honeycomb can group on it without re-deriving.
+      if (s.objective !== null) {
+        attrs["slo.objective_ms"] = s.objective;
+        attrs["slo.breached"] = Trace.breached(s);
+      }
+
+      var span = {
+        traceId: Trace.traceId(),
+        spanId: s.id,
+        name: s.name,
+        kind: SPAN_KIND[s.kind] || SPAN_KIND.INTERNAL,
+        startTimeUnixNano: unixNano(s.start),
+        endTimeUnixNano: unixNano(endMs),
+        attributes: attributes(attrs),
+        status: { code: STATUS_CODE[s.status] || STATUS_CODE.UNSET }
+      };
+      if (s.parentId) span.parentSpanId = s.parentId;
+      return span;
+    }
+
+    // Spans go out once, marked on the span itself so the store's eviction can
+    // see which ones are safe to drop.
+    function collect(closeRoot) {
+      var out = [];
+      var all = Trace.spans();
+      for (var i = 0; i < all.length; i += 1) {
+        var s = all[i];
+        if (s.otlpSent) continue;
+        if (s.end !== null) {
+          s.otlpSent = true;
+          out.push(toOtlpSpan(s, s.end));
+        } else if (closeRoot && s.id === Trace.rootId()) {
+          // The root span deliberately never ends — the UI depends on that.
+          // On the final flush it is closed to the last recorded event, or the
+          // trace would sit in Honeycomb permanently rootless.
+          s.otlpSent = true;
+          out.push(toOtlpSpan(s, Trace.lastEvent()));
+        }
+      }
+      return out;
+    }
+
+    function send(spans, unloading) {
+      if (!spans.length) return;
+      var body = JSON.stringify({
+        resourceSpans: [{
+          resource: resource(),
+          scopeSpans: [{
+            scope: { name: "me.dackota.com/trace", version: "1" },
+            spans: spans
+          }]
+        }]
+      });
+
+      // A page going away takes its fetches with it; sendBeacon hands the
+      // request to the browser to finish on its own.
+      if (unloading && navigator.sendBeacon) {
+        navigator.sendBeacon(ENDPOINT, new Blob([body], { type: "application/json" }));
+        return;
+      }
+      fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body,
+        keepalive: true
+      })["catch"](function () {
+        // Telemetry is never allowed to break the page it measures.
+      });
+    }
+
+    function flush(closeRoot, unloading) {
+      send(collect(closeRoot), unloading);
+    }
+
+    setInterval(function () { flush(false, false); }, FLUSH_MS);
+
+    // Two listeners, because neither covers the other: pagehide is the only
+    // one that fires reliably on a bfcache navigation, and the hidden
+    // transition is what catches a mobile tab switch that never comes back.
+    // Only pagehide closes the root — a tab switch is not the end of the
+    // visit, and a root closed at the first blur would report a false duration.
+    window.addEventListener("pagehide", function () { flush(true, true); });
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") flush(false, true);
+    });
   })();
 
   function fmtDur(ms) {
@@ -1812,7 +2007,7 @@
       print(pad(s.service, 14) + pad(s.name.slice(0, 32), 34) + pad(fmtDur(Trace.duration(s)), 12) + status, cls);
     });
     print("");
-    print("nothing here was transmitted — see the trace explorer section for the waterfall.", "line-warn");
+    print("these spans are exported over OTLP to Honeycomb — see the trace explorer section for the waterfall.", "line-cyan");
   }
 
   function cmdSlo() {

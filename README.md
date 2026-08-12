@@ -22,7 +22,8 @@ git push → GitHub Actions (Grype-scanned, multi-arch) → release-please tag
 ```
 
 - **CI** (`ci.yml`): builds the image and smoke-tests it (`/healthz`, page content,
-  SPA fallback) on every PR and push to main. No push to the registry.
+  SPA fallback, and the OTLP endpoint with and without an ingest key) on every PR
+  and push to main. No push to the registry.
 - **Releases** (`release-please.yml`): conventional commits on main open/merge a
   release PR; the resulting `v*` tag triggers `publish.yml`.
 - **Publish** (`publish.yml`): Grype-scans (fails on HIGH/CRITICAL before any
@@ -35,6 +36,45 @@ Deployment lives in
 under `gitops/workloads/resume-website/`, as a thin dependency on
 [generic-app-chart](https://github.com/dackota/generic-app-chart).
 
+## Telemetry
+
+The trace explorer on the page is not a mock: `assets/app.js` keeps a real
+OpenTelemetry span store, and those spans are exported to Honeycomb over
+OTLP/HTTP. There is no SDK and no build step — the OTLP JSON wire format is a
+few nested objects, so the exporter is ~150 lines of the same vanilla JS as the
+rest of the file.
+
+```
+browser ──POST /v1/traces──> nginx ──+ x-honeycomb-team ──> api.honeycomb.io
+         (same-origin, no key)        (key from env)
+```
+
+The ingest key is attached by nginx, never shipped to the browser. That is what
+keeps the page's CSP at `connect-src 'self'`, keeps the key out of view-source,
+and lets the unload flush use `sendBeacon` (which cannot set headers).
+
+`nginx.conf.template` is rendered to `/tmp/nginx.conf` at container start by the
+base image's envsubst entrypoint — `/tmp` because it is the only writable path
+under the chart's `readOnlyRootFilesystem`, which is also why the Dockerfile
+passes `-c /tmp/nginx.conf` explicitly. Only `${HONEYCOMB_*}` is substituted
+(`NGINX_ENVSUBST_FILTER`), so nginx's own `$uri`/`$args`/`$http_*` survive.
+
+**Configuration** — one variable, `HONEYCOMB_API_KEY` (an *ingest* key, not a
+management key). With it unset, `/v1/traces` returns 204 and nothing leaves the
+container, so a plain `docker build && docker run` behaves identically without a
+Honeycomb account. In the cluster it comes from a Secret, wired in
+[free-tier-oracle-cloud-k8s](https://github.com/dackota/free-tier-oracle-cloud-k8s)
+under `gitops/workloads/resume-website/` as an `env` entry with `secretKeyRef`.
+
+Spans land under service `resume-website`, with `service.version` taken from the
+release version already embedded in the asset URLs. Region is US
+(`api.honeycomb.io`); for EU, change the host in `nginx.conf.template`.
+
+**What is collected:** span names, durations, status, and the attributes the
+trace explorer already shows you, plus user agent, language, viewport, and
+`location.pathname`. No cookies, no storage, no identifiers, and never the query
+string or fragment — the trace id is random per tab and dies with it.
+
 ## Local dev
 
 ```
@@ -42,4 +82,7 @@ docker build -t resume-website:dev .
 docker run --rm -p 8080:8080 --read-only --tmpfs /tmp resume-website:dev
 ```
 
-…or just open `index.html` in a browser.
+To exercise the Honeycomb path, add `-e HONEYCOMB_API_KEY=<ingest key>`.
+
+…or just open `index.html` in a browser — the exporter POSTs to a `/v1/traces`
+that isn't there, the fetch fails, and the page carries on.

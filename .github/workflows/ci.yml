@@ -74,4 +74,46 @@ jobs:
           assert_contains "/assets/styles.css" "--green"
           assert_contains "/assets/app.js" "kubectl"
 
+          # The OTLP endpoint exists at all only if the envsubst template
+          # rendered and nginx started from /tmp/nginx.conf — so this doubles
+          # as the check that the run-time config wiring still works. With no
+          # HONEYCOMB_API_KEY set (as here) it must swallow the batch locally
+          # rather than proxy upstream: a 502 would mean the no-key branch is
+          # gone and every keyless deploy is talking to api.honeycomb.io.
+          assert_status() {
+            path="$1"; method="$2"; want="$3"; got=""
+            got=$(curl -fsS -o /dev/null -w '%{http_code}' -X "$method" \
+              -H 'Content-Type: application/json' -d '{"resourceSpans":[]}' \
+              "http://localhost:8080${path}") || fail "${method} ${path} failed"
+            [ "$got" = "$want" ] \
+              && echo "ok: ${method} ${path} -> ${got}" \
+              || fail "${method} ${path} -> ${got}, wanted ${want}"
+          }
+
+          assert_status "/v1/traces" POST 204
+
           docker stop site
+
+          # Same image, key supplied: the key must reach the rendered config.
+          # Checked by inspection rather than by posting upstream — CI holds no
+          # Honeycomb credentials and must not depend on a third party.
+          docker run -d --rm --name site-key --read-only --tmpfs /tmp \
+            -e HONEYCOMB_API_KEY=ci-placeholder-key resume-website:ci
+          sleep 2
+          rendered=$(docker exec site-key cat /tmp/nginx.conf) \
+            || { docker logs site-key || true; docker stop site-key >/dev/null 2>&1 || true; \
+                 echo "::error::config was never rendered to /tmp/nginx.conf"; exit 1; }
+          case "$rendered" in
+            *'set $honeycomb_key "ci-placeholder-key";'*)
+              echo "ok: ingest key substituted into the rendered config" ;;
+            *) docker stop site-key >/dev/null 2>&1 || true
+               echo "::error::HONEYCOMB_API_KEY did not reach the rendered config"; exit 1 ;;
+          esac
+          # envsubst must leave nginx's own variables alone.
+          case "$rendered" in
+            *'try_files $uri $uri/ /index.html;'*)
+              echo "ok: nginx variables survived envsubst" ;;
+            *) docker stop site-key >/dev/null 2>&1 || true
+               echo "::error::envsubst clobbered nginx variables"; exit 1 ;;
+          esac
+          docker stop site-key
