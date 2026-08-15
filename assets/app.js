@@ -1343,7 +1343,33 @@
   var filters = { impacts: [], repo: "", day: null };
 
   function repoName(url) {
-    return String(url).replace(/\.git$/, "").split("/").pop() || url;
+    return repoHref(url).split("/").pop() || url;
+  }
+
+  function repoHref(url) {
+    return String(url).replace(/\.git$/, "");
+  }
+
+  function commitHref(c) {
+    return c.commitSha ? repoHref(c.repo) + "/commit/" + c.commitSha : null;
+  }
+
+  // issueRefs arrive as "#139". Everything tracked here lands through a pull
+  // request (Renovate, release-please, or me), so a bare ref resolves to /pull/ —
+  // and GitHub redirects /pull/N to /issues/N on the rare miss.
+  function pullHref(c, ref) {
+    var n = String(ref || "").replace(/^#/, "");
+    return /^\d+$/.test(n) ? repoHref(c.repo) + "/pull/" + n : null;
+  }
+
+  function extLink(href, text, cls) {
+    var a = document.createElement("a");
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    if (cls) a.className = cls;
+    a.textContent = text;
+    return a;
   }
 
   function isBot(author) {
@@ -1825,10 +1851,7 @@
       impact.textContent = c.impact || "other";
       head.appendChild(impact);
 
-      var repo = document.createElement("span");
-      repo.className = "feed-repo";
-      repo.textContent = repoName(c.repo);
-      head.appendChild(repo);
+      head.appendChild(extLink(repoHref(c.repo), repoName(c.repo), "feed-repo"));
 
       (c.risk || []).forEach(function (r) {
         var chip = document.createElement("span");
@@ -1846,7 +1869,12 @@
 
       var subject = document.createElement("p");
       subject.className = "feed-subject";
-      subject.textContent = c.subject || c.commitSha.slice(0, 12);
+      var subjectText = c.subject || c.commitSha.slice(0, 12);
+      // The subject points at the PR that carried the change; direct pushes have
+      // no ref, so they fall back to the commit itself.
+      var subjectHref = pullHref(c, (c.issueRefs || [])[0]) || commitHref(c);
+      if (subjectHref) subject.appendChild(extLink(subjectHref, subjectText, "feed-link"));
+      else subject.textContent = subjectText;
       li.appendChild(subject);
 
       var by = document.createElement("div");
@@ -1855,9 +1883,17 @@
       if (isBot(c.author)) author.className = "bot";
       author.textContent = c.author;
       by.appendChild(author);
-      by.appendChild(document.createTextNode(
-        " · " + c.commitSha.slice(0, 7) + ((c.issueRefs && c.issueRefs.length) ? " · " + c.issueRefs.join(" ") : "")
-      ));
+
+      var sha = c.commitSha.slice(0, 7);
+      var shaHref = commitHref(c);
+      by.appendChild(document.createTextNode(" · "));
+      by.appendChild(shaHref ? extLink(shaHref, sha, "feed-link") : document.createTextNode(sha));
+
+      (c.issueRefs || []).forEach(function (ref) {
+        var href = pullHref(c, ref);
+        by.appendChild(document.createTextNode(" · "));
+        by.appendChild(href ? extLink(href, ref, "feed-link") : document.createTextNode(ref));
+      });
       li.appendChild(by);
 
       if (c.changes && c.changes.length) {
