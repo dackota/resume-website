@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/dackota/resume-website/compare/v1.8.0...v1.9.0) (2026-08-15)
+
+
+### Features
+
+* link change feed entries to their PRs and repos ([#43](https://github.com/dackota/resume-website/issues/43)) ([ea39dab](https://github.com/dackota/resume-website/commit/ea39dab6b6a75ad9207a8d2254a6145d61cb8589))
+
 ## [1.8.0](https://github.com/dackota/resume-website/compare/v1.7.1...v1.8.0) (2026-08-12)
 
 
