@@ -1,7 +1,7 @@
 # resume-website
 
 Dackota Johnson's interactive resume, served at **[me.dackota.com](https://me.dackota.com)** —
-the resume presented as a platform console: a `kubectl` hero, a Kargo-style career
+the resume presented as a platform console: a `kubectl` hero, a single-artifact career
 promotion pipeline, an animated metrics board, an interactive terminal you can
 actually type into, and a career changelog cut with conventional commits.
 
