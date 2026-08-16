@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/dackota/resume-website/compare/v1.9.0...v1.10.0) (2026-08-16)
+
+
+### Features
+
+* add stable per-visitor id to page-view spans ([#47](https://github.com/dackota/resume-website/issues/47)) ([ea374c8](https://github.com/dackota/resume-website/commit/ea374c862f71664068e7a933956986f7225cacde))
+
 ## [1.9.0](https://github.com/dackota/resume-website/compare/v1.8.0...v1.9.0) (2026-08-15)
 
 
