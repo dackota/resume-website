@@ -71,8 +71,13 @@ release version already embedded in the asset URLs. Region is US
 
 **What is collected:** span names, durations, status, and the attributes the
 trace explorer already shows you, plus user agent, language, viewport, and
-`location.pathname`. No cookies, no storage, no identifiers, and never the query
-string or fragment — the trace id is random per tab and dies with it.
+`location.pathname` — never the query string or fragment. The trace id is
+random per tab and dies with it. The root span additionally carries
+`visitor.id`, a random UUID kept in a first-party `visitor_id` cookie
+(`SameSite=Lax`, ~1 year, no third-party sharing) so page-view spans from the
+same browser can be correlated across visits. It isn't derived from IP, user
+agent, or any other fingerprintable signal — it's an opaque, purely anonymous
+correlation key, the same idea as an analytics "anonymous id."
 
 ## Blog
 
