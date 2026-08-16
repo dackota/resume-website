@@ -204,7 +204,7 @@
     <div class="trace-actions">
       <button class="btn" id="trace-copy" type="button">Copy trace ID</button>
       <button class="btn" id="trace-export" type="button">Export OTLP JSON</button>
-      <span class="trace-note" id="trace-note">held in memory only — no beacon, no cookie, no storage, nothing leaves your browser</span>
+      <span class="trace-note" id="trace-note">trace id lives in memory only and dies with the tab — visitor.id is a first-party cookie kept ~1 year to correlate page-view spans across visits</span>
     </div>
     <pre class="otlp" id="otlp-out" hidden></pre>
   </div>

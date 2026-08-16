@@ -8,8 +8,11 @@
   /* ================= tracing core =================
      An OTel-shaped span store: real trace/span ids, real attributes, real
      status codes. The trace explorer section renders it, and the exporter
-     below ships it to Honeycomb over OTLP. Still no cookies and no storage —
-     the trace id is random per tab and nothing here outlives the tab. */
+     below ships it to Honeycomb over OTLP. The trace id is still random per
+     tab and dies with it — but the root span also carries a `visitor.id`,
+     a random UUID kept in a first-party cookie, so page-view spans from the
+     same browser can be correlated across visits. See getVisitorId() below
+     for exactly what that cookie holds and doesn't. */
   var Trace = (function () {
     var HEX = "0123456789abcdef";
     function hex(len) {
@@ -18,6 +21,38 @@
       if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
       for (var i = 0; i < len; i += 1) out += HEX[bytes[i] % 16];
       return out;
+    }
+
+    // A stable, anonymous per-visitor id: a random (v4) UUID, not derived
+    // from anything identifying (no IP, no fingerprint), held in a
+    // first-party cookie so it survives across tabs and visits. It carries
+    // no PII on its own — it's an opaque correlation key, same idea as a
+    // Honeycomb/analytics "anonymous id".
+    var VISITOR_COOKIE = "visitor_id";
+    var VISITOR_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+
+    function readCookie(name) {
+      var m = document.cookie.match(new RegExp("(?:^|;\\s*)" + name + "=([^;]*)"));
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+
+    function getVisitorId() {
+      var existing = readCookie(VISITOR_COOKIE);
+      if (existing) return existing;
+
+      // Build a UUID v4 out of the same CSPRNG bytes used for trace/span
+      // ids, with the version/variant nibbles forced per RFC 4122.
+      var b = hex(32);
+      var version = "4" + b.slice(13, 16);
+      var variant = "89ab".charAt(parseInt(b[16], 16) & 0x3) + b.slice(17, 20);
+      var id = b.slice(0, 8) + "-" + b.slice(8, 12) + "-" + version + "-" + variant + "-" + b.slice(20, 32);
+
+      var cookie = VISITOR_COOKIE + "=" + id + "; Path=/; Max-Age=" + VISITOR_MAX_AGE + "; SameSite=Lax";
+      // Secure is conditional so a plain `docker build && docker run` over
+      // http (no TLS-terminating proxy in front) still persists the cookie.
+      if (location.protocol === "https:") cookie += "; Secure";
+      document.cookie = cookie;
+      return id;
     }
 
     var t0 = performance.now();
@@ -34,7 +69,8 @@
         "http.route": "/",
         "http.status_code": 200,
         "browser.viewport": window.innerWidth + "x" + window.innerHeight,
-        "telemetry.sdk.name": "hand-rolled, 200 lines, no dependencies"
+        "telemetry.sdk.name": "hand-rolled, 200 lines, no dependencies",
+        "visitor.id": getVisitorId()
       }
     };
     var spans = [root];
@@ -127,8 +163,10 @@
      couple of nested objects and JSON.stringify.
 
      What leaves the page: span names, durations, and the attributes the trace
-     explorer already shows you. No cookies, no storage, no identifiers, and
-     the URL is reduced to its path so a query string can't smuggle one out. */
+     explorer already shows you — including `visitor.id` on the root span, a
+     random UUID kept in a first-party cookie (see getVisitorId() above). No
+     fingerprinting, no third-party sharing, and the URL is reduced to its
+     path so a query string can't smuggle one out. */
   (function () {
     var ENDPOINT = "/v1/traces";
     var SERVICE_NAME = "resume-website";
