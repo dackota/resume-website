@@ -34,7 +34,7 @@ USER root
 #
 # Non-extended build on purpose: the extended variant only adds Sass, and blog
 # CSS is plain and lives in /assets/ with the rest of the site's stylesheets.
-ARG HUGO_VERSION=0.164.0
+ARG HUGO_VERSION=0.165.0
 ARG HUGO_SHA256_AMD64=d9c8b17285ea4ec004d9f814273ea910f2051ce02c284993fd1f91ba455ae50d
 ARG HUGO_SHA256_ARM64=948ee5f0ed30175f31937d592d63a2712f0761a69f1cbe812f780eb918a08b8e
 ARG BUILDARCH
