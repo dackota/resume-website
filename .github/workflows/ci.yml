@@ -31,6 +31,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Same check publish.yml runs before pushing a release — run here too,
+      # so a new CVE blocks the PR instead of surfacing only after merge.
+      - name: Scan image (Grype) — fail on HIGH/CRITICAL
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: resume-website:ci
+          output-format: table
+          fail-build: "true"
+          only-fixed: "true"
+          severity-cutoff: high
+
       - name: Smoke test — serves index and /healthz
         run: |
           set -euo pipefail
