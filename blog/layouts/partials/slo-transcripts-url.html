@@ -1,0 +1,9 @@
+{{/* Resolves the post's transcripts.json page resource, or fails the build with
+     a message that names the missing file. Without the guard, a bundle missing
+     the data errors as "can't evaluate field RelPermalink in type
+     resource.Resource", which does not say what to do about it. */}}
+{{ $res := .Resources.GetMatch "transcripts.json" }}
+{{ if not $res }}
+  {{ errorf "%s uses an SLO widget but has no transcripts.json in its page bundle. Generate it with scripts/slo-post-experiment.sh." .File.Path }}
+{{ end }}
+{{ return $res.RelPermalink }}

@@ -1,0 +1,50 @@
+{
+  "0a": {
+    "verdict": "pass",
+    "reason": "Hedges 137 correctly as 'almost always' OOM rather than always, and points at Last State, which is where OOMKilled actually appears. The kubectl set resources syntax is valid."
+  },
+  "0b": {
+    "verdict": "pass",
+    "reason": "Says 'Status/Events section' when OOMKilled lives in the container's Last State, which is imprecise, but describe pod puts all of it on one screen so the engineer still finds it. The jsonpath with empty brackets is valid kubectl syntax; I checked it against kubectl 1.36."
+  },
+  "1a": {
+    "verdict": "fail",
+    "reason": "The jsonpath is invented. kubectl has no object-construction syntax, so {.status.containerStatuses[*].{name:.name,...}} exits with 'unrecognized character in action: U+007B'. Verified against kubectl 1.36. It also has lastState and state backwards."
+  },
+  "1b": {
+    "verdict": "pass",
+    "reason": "The range/end jsonpath is exactly right and answers the question in one command: it prints each container name next to its termination reason."
+  },
+  "2a": {
+    "verdict": "pass",
+    "reason": "Leads with the actual cause. CPU percentage is computed against requests, not limits, and an unset request makes the HPA report unknown and refuse to scale."
+  },
+  "2b": {
+    "verdict": "pass",
+    "reason": "Also leads with requests. The grep for targetCPUUtilizationPercentage is the autoscaling/v1 field name and returns nothing against a v2 HPA, which is a silent miss, but it is item five and item one is correct."
+  },
+  "3a": {
+    "verdict": "pass",
+    "reason": "describe pod and read Events is the answer. status.conditions is a real second source: PodScheduled=False carries the scheduler's reason."
+  },
+  "3b": {
+    "verdict": "pass",
+    "reason": "Correct command and correct section. It garbles WaitForFirstConsumer into PendingFirstConsumer, which is a wrong string but not a wrong direction. The judge failed this one for the same string. That is a defensible difference in strictness rather than a factual gap: an invented reason string in a bulleted list of things to look for is less costly than an invented command, because nobody types it."
+  },
+  "4a": {
+    "verdict": "fail",
+    "reason": "The label selector is invented. `acme.cert-manager.io/order-name` appears nowhere in cert-manager's source: a GitHub code search across the repository returns one hit, a `<order-name>` placeholder inside a kubectl command in a design document. Challenges are linked to their Order by ownerReference and name prefix. REVISED: I first graded this pass, on the strength of a web search that asserted the label was real. The judge disputed it, I checked the source, and the judge was right. My grade was the hallucination here, and the tool I used to check it hallucinated too."
+  },
+  "4b": {
+    "verdict": "pass",
+    "reason": "Same chain, and it names the Challenge state progression correctly."
+  },
+  "5a": {
+    "verdict": "fail",
+    "reason": "Ends on 'Most common: Service has no healthy endpoints. Run kubectl get endpoints first.' A route with no backing endpoints returns 503, not 404, so the headline advice cannot explain the symptom. It never checks whether Traefik accepted the route at all, which is the thing that actually produces a 404 for a route that exists."
+  },
+  "5b": {
+    "verdict": "pass",
+    "reason": "Leads with the match rule and competing routes, which is right. It repeats the same backend-down theory but demotes it to second, after the cause that fits a 404. The judge failed this one, correctly noting that an unreachable backend returns 502 or 503 rather than 404. I hold the pass because position in the answer changes the cost: 5a leads with that false cause and never mentions route matching, so it sends you to the wrong place. 5b leads with the match rule and demotes the false cause to a trailing aside."
+  }
+}

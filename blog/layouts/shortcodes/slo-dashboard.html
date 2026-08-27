@@ -1,0 +1,18 @@
+{{/* Widget A. The fallback content sits inside the mount and is replaced by
+     assets/blog-slo.js; with JS off it stays and still makes the point.
+     data-src is the post's own transcripts.json page resource. */}}
+<div class="slow-mount" data-widget="dashboard" data-src="{{ partial "slo-transcripts-url.html" .Page }}">
+  <div class="slo-panel">
+    <div class="slo-head">
+      <span class="slo-title">SLO · 99.9% of requests succeed</span>
+      <span class="slo-verdict ok">99.97% · healthy</span>
+    </div>
+    <div class="budget-bar"><span class="budget-fill"></span></div>
+    <p class="slo-def">
+      Every request behind this panel returned HTTP 200 inside its latency
+      objective, and several of the answers were wrong. Seeing which ones needs
+      JavaScript. The raw transcripts read fine without it:
+      <a href="{{ partial "slo-transcripts-url.html" .Page }}">transcripts.json</a>.
+    </p>
+  </div>
+</div>
