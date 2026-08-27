@@ -1,0 +1,11 @@
+{{/* Widget B. Same mount contract as slo-dashboard. */}}
+<div class="slow-mount" data-widget="judge" data-src="{{ partial "slo-transcripts-url.html" .Page }}">
+  <div class="slo-panel">
+    <p class="slo-def">
+      This is an interactive grader: you score six real answers, then compare
+      your grades against the judge model's. It needs JavaScript. The raw
+      transcripts are readable either way:
+      <a href="{{ partial "slo-transcripts-url.html" .Page }}">transcripts.json</a>.
+    </p>
+  </div>
+</div>

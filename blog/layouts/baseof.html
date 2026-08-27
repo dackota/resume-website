@@ -28,6 +28,13 @@
        would serve returning readers stale CSS against new markup. */}}
   <link rel="stylesheet" href="/assets/styles.css?v=__ASSET_VER__">
   <link rel="stylesheet" href="/assets/blog.css?v=__ASSET_VER__">
+  {{/* Interactive posts opt in with `interactive = true` in their frontmatter.
+       Every other page renders byte-identical to before, which keeps a prose
+       post free of a stylesheet and a script it never uses. */}}
+  {{ if .Params.interactive }}
+    <link rel="stylesheet" href="/assets/blog-slo.css?v=__ASSET_VER__">
+    <script defer src="/assets/blog-slo.js?v=__ASSET_VER__"></script>
+  {{ end }}
 
   <link rel="canonical" href="{{ .Permalink }}">
   {{ with .Site.Home.OutputFormats.Get "rss" }}
