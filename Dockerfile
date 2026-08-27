@@ -88,7 +88,13 @@ USER root
 # proxy_ssl_verify on, which needs a trust store present at a known path.
 # Installed explicitly rather than inherited, so a base-image change can't
 # silently break it.
+#
+# libssl3/libcrypto3 are upgraded explicitly because the pinned base image
+# still ships 3.5.7-r0 (CVE-2026-18798 and others, fixed in 3.5.8-r0), even at
+# its latest digest for this tag. Grype fails the build on it otherwise.
+# Drop this once a base-image bump carries the fix.
 RUN apk add --no-cache ca-certificates && \
+    apk upgrade --no-cache libssl3 libcrypto3 && \
     test -s /etc/ssl/certs/ca-certificates.crt
 
 # The config is a template rather than a finished file so the Honeycomb ingest
