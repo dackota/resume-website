@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/dackota/resume-website/compare/v1.10.0...v1.11.0) (2026-08-27)
+
+
+### Features
+
+* **blog:** add "Error Budgets for Things That Lie" ([#51](https://github.com/dackota/resume-website/issues/51)) ([5858653](https://github.com/dackota/resume-website/commit/58586536f784b4a0cee9323e8c106b472106bd25))
+
 ## [1.10.0](https://github.com/dackota/resume-website/compare/v1.9.0...v1.10.0) (2026-08-16)
 
 
