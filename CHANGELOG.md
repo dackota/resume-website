@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/dackota/resume-website/compare/v1.11.0...v1.11.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* upgrade libssl3/libcrypto3 to patch high-severity CVEs ([#53](https://github.com/dackota/resume-website/issues/53)) ([53c81ad](https://github.com/dackota/resume-website/commit/53c81ad8db5c62e53c6804bbda753afdf18959ae))
+
 ## [1.11.0](https://github.com/dackota/resume-website/compare/v1.10.0...v1.11.0) (2026-08-27)
 
 
