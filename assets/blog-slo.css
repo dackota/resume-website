@@ -147,3 +147,13 @@
   .slow-score-row { grid-template-columns: 1fr auto auto; }
   .slow-score-row .slow-col-human { display: none; }
 }
+
+/* ---------- feed pause state ---------- */
+.slow-feed-state {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--green);
+  margin-left: 0.2rem;
+}
+.slow-feed-state::before { content: "\00b7\00a0"; color: var(--muted); }
+.slow-feed-state.is-paused { color: var(--amber); }

@@ -96,6 +96,12 @@
     var wrong = 0;
     var cursor = 0;
 
+    /* Three independent reasons the feed stops, tracked separately so that
+       leaving the widget does not resume a feed the reader deliberately
+       paused, and closing a row does not resume one they are still hovering. */
+    var pausedByButton = false;
+    var pointerOverFeed = false;
+
     mount.textContent = "";
     var panel = el("div", "slo-panel");
     var head = el("div", "slo-head");
@@ -113,6 +119,16 @@
     toggle.type = "button";
     toggle.setAttribute("aria-pressed", "false");
     controls.appendChild(toggle);
+
+    var pauseBtn = null;
+    var state = el("span", "slow-feed-state");
+    if (!reducedMotion) {
+      pauseBtn = el("button", "slow-btn", "Pause feed");
+      pauseBtn.type = "button";
+      pauseBtn.setAttribute("aria-pressed", "false");
+      controls.appendChild(pauseBtn);
+      controls.appendChild(state);
+    }
 
     var feed = el("div", "slow-feed");
     var scroll = el("div", "slow-feed-scroll");
@@ -174,6 +190,7 @@
       row.addEventListener("click", function () {
         var open = row.classList.toggle("is-open");
         row.setAttribute("aria-expanded", open ? "true" : "false");
+        updateFeedState();
       });
 
       if (scoringCorrectness && entry.verdict === "fail") row.classList.add("is-wrong");
@@ -213,11 +230,63 @@
       render();
     });
 
+    /* Reasons are checked in the order the reader will understand them: an
+       explicit press outranks an accidental hover, and an open row outranks
+       the pointer that opened it. */
+    function pauseReason() {
+      if (reducedMotion) return "";
+      if (pausedByButton) return "paused";
+      /* Asked of the DOM rather than counted, so trimming an open row off the
+         end of the feed cannot leave the count stuck above zero and the feed
+         paused forever. */
+      if (scroll.querySelector(".slow-row.is-open")) return "paused while a row is open";
+      if (pointerOverFeed) return "paused while you read";
+      return "";
+    }
+
+    function updateFeedState() {
+      if (!pauseBtn) return;
+      var reason = pauseReason();
+      state.textContent = reason || "live";
+      state.className = "slow-feed-state" + (reason ? " is-paused" : "");
+      pauseBtn.textContent = pausedByButton ? "Resume feed" : "Pause feed";
+      pauseBtn.setAttribute("aria-pressed", pausedByButton ? "true" : "false");
+    }
+
+    if (pauseBtn) {
+      pauseBtn.addEventListener("click", function () {
+        pausedByButton = !pausedByButton;
+        updateFeedState();
+      });
+
+      /* focusin/focusout as well as the pointer events: a reader tabbing
+         through the rows is reading them just as much as one hovering, and
+         rows scrolling out from under the focus ring is worse than under a
+         cursor. */
+      ["mouseenter", "focusin"].forEach(function (evt) {
+        feed.addEventListener(evt, function () {
+          pointerOverFeed = true;
+          updateFeedState();
+        });
+      });
+      ["mouseleave", "focusout"].forEach(function (evt) {
+        feed.addEventListener(evt, function () {
+          pointerOverFeed = false;
+          updateFeedState();
+        });
+      });
+    }
+
     for (var i = 24; i > 0; i -= 1) addRow(nextEntry(), i * 3);
     render();
+    updateFeedState();
 
     if (!reducedMotion) {
+      /* The timer keeps running and the tick is skipped, rather than being
+         cleared and restarted. Resuming then adds the next row one interval
+         later instead of dumping a burst of backdated rows at once. */
       window.setInterval(function () {
+        if (pauseReason()) return;
         addRow(nextEntry(), 0);
         render();
       }, 900);
