@@ -22,7 +22,7 @@
 # publish.yml builds amd64+arm64, and generated HTML is identical either way, so
 # running Hugo twice — once under emulation — would cost minutes to produce
 # byte-identical output.
-FROM --platform=$BUILDPLATFORM nginxinc/nginx-unprivileged:1.31.3-alpine3.24@sha256:a6c3ec0c0d249d68b0682df854d4a9e222b90fb607dc3fcf2f1d2fcbc85d347e AS blog
+FROM --platform=$BUILDPLATFORM nginxinc/nginx-unprivileged:1.31.5-alpine3.24@sha256:aa8c9087d36d93e9d650c5365f883b421e8214aedbad24ade52b844c583358f1 AS blog
 
 USER root
 
@@ -75,7 +75,7 @@ RUN hugo --destination /out --minify --gc && \
 # works with readOnlyRootFilesystem + a writable /tmp — see nginx.conf.template).
 # Base image digest-pinned per the supply-chain convention shared with
 # consulting-spa and change-tracking-dashboard; bump tag+digest together.
-FROM nginxinc/nginx-unprivileged:1.31.3-alpine3.24@sha256:a6c3ec0c0d249d68b0682df854d4a9e222b90fb607dc3fcf2f1d2fcbc85d347e
+FROM nginxinc/nginx-unprivileged:1.31.5-alpine3.24@sha256:aa8c9087d36d93e9d650c5365f883b421e8214aedbad24ade52b844c583358f1
 
 # Build steps run as root because both of them write outside the runtime
 # user's reach: apk needs the package db, and the version substitution below
@@ -89,12 +89,13 @@ USER root
 # Installed explicitly rather than inherited, so a base-image change can't
 # silently break it.
 #
-# libssl3/libcrypto3 are upgraded explicitly because the pinned base image
-# still ships 3.5.7-r0 (CVE-2026-18798 and others, fixed in 3.5.8-r0), even at
-# its latest digest for this tag. Grype fails the build on it otherwise.
-# Drop this once a base-image bump carries the fix.
+# Every installed package is upgraded to the Alpine repo's current fix. The
+# base image lags the repo by days to weeks: at 1.31.5 it still ships
+# libuuid 2.42.1-r0 and libexpat 2.8.2-r0, both with HIGH CVEs fixed in the
+# repo. Grype fails the build on those otherwise. An upgrade of everything
+# beats a list of package names that goes stale with every new CVE.
 RUN apk add --no-cache ca-certificates && \
-    apk upgrade --no-cache libssl3 libcrypto3 && \
+    apk upgrade --no-cache && \
     test -s /etc/ssl/certs/ca-certificates.crt
 
 # The config is a template rather than a finished file so the Honeycomb ingest
