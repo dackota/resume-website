@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" width="960" height="420" role="img" aria-label="Deploy flow: PR to Argo CD to team namespace; minter writes Secret and tool policy; agent pod talks only to the LLM gateway and the tool gateway">
+  <style>
+    .box{fill:#111827;stroke:#4b5563;stroke-width:1.5;rx:8}
+    .plat{fill:#0b2a3a;stroke:#2dd4bf;stroke-width:1.5;rx:8}
+    .team{fill:#1f1a33;stroke:#a78bfa;stroke-width:1.5;rx:8}
+    .t{fill:#e5e7eb;font:15px ui-monospace,SFMono-Regular,Menlo,monospace}
+    .s{fill:#9ca3af;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
+    .l{stroke:#9ca3af;stroke-width:1.5;fill:none;marker-end:url(#a)}
+    .lk{stroke:#2dd4bf;stroke-width:1.5;fill:none;marker-end:url(#a);stroke-dasharray:5 4}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9ca3af"/></marker></defs>
+  <rect width="960" height="420" fill="#0b0f17"/>
+
+  <rect class="box" x="24" y="40" width="150" height="56"/>
+  <text class="t" x="99" y="63" text-anchor="middle">developer</text>
+  <text class="s" x="99" y="83" text-anchor="middle">PR: values.yaml</text>
+
+  <rect class="box" x="234" y="40" width="150" height="56"/>
+  <text class="t" x="309" y="63" text-anchor="middle">git + CI</text>
+  <text class="s" x="309" y="83" text-anchor="middle">schema check</text>
+
+  <rect class="box" x="444" y="40" width="150" height="56"/>
+  <text class="t" x="519" y="63" text-anchor="middle">Argo CD</text>
+  <text class="s" x="519" y="83" text-anchor="middle">AppProject per team</text>
+
+  <rect class="team" x="654" y="24" width="282" height="176"/>
+  <text class="s" x="795" y="44" text-anchor="middle">namespace team-demo</text>
+  <rect class="box" x="674" y="58" width="242" height="48"/>
+  <text class="t" x="795" y="79" text-anchor="middle">Deployment + Service + Route</text>
+  <text class="s" x="795" y="97" text-anchor="middle">NetworkPolicy: gateways only</text>
+  <rect class="box" x="674" y="118" width="112" height="44"/>
+  <text class="s" x="730" y="136" text-anchor="middle">registration</text>
+  <text class="s" x="730" y="152" text-anchor="middle">ConfigMap</text>
+  <rect class="box" x="804" y="118" width="112" height="44"/>
+  <text class="s" x="860" y="136" text-anchor="middle">Secret</text>
+  <text class="s" x="860" y="152" text-anchor="middle">LLM key + JWT</text>
+
+  <rect class="plat" x="24" y="250" width="912" height="146"/>
+  <text class="s" x="480" y="270" text-anchor="middle">platform-owned</text>
+  <rect class="box" x="60" y="290" width="200" height="80"/>
+  <text class="t" x="160" y="318" text-anchor="middle">minter</text>
+  <text class="s" x="160" y="338" text-anchor="middle">mints key + JWT</text>
+  <text class="s" x="160" y="354" text-anchor="middle">writes tool policy</text>
+  <rect class="box" x="380" y="290" width="200" height="80"/>
+  <text class="t" x="480" y="318" text-anchor="middle">LiteLLM</text>
+  <text class="s" x="480" y="338" text-anchor="middle">provider keys, budgets</text>
+  <text class="s" x="480" y="354" text-anchor="middle">model allow-list</text>
+  <rect class="box" x="700" y="290" width="200" height="80"/>
+  <text class="t" x="800" y="318" text-anchor="middle">agentgateway</text>
+  <text class="s" x="800" y="338" text-anchor="middle">JWT + CEL tool allow-list</text>
+  <text class="s" x="800" y="354" text-anchor="middle">MCP servers behind it</text>
+
+  <path class="l" d="M174 68H232"/>
+  <path class="l" d="M384 68H442"/>
+  <path class="l" d="M594 68H652"/>
+  <path class="lk" d="M730 162V230Q730 244 716 244H270Q260 244 260 258V288"/>
+  <path class="lk" d="M160 290V270Q160 258 172 258H840Q860 258 860 240V164"/>
+  <path class="l" d="M760 106V176Q760 190 748 190H500Q480 190 480 210V288"/>
+  <path class="l" d="M830 106V176Q830 190 842 190H860Q880 190 880 210V288"/>
+  <text class="s" x="330" y="236">reads registration</text>
+  <text class="s" x="560" y="182">LLM_API_KEY</text>
+  <text class="s" x="900" y="236">TOOLS_TOKEN</text>
+</svg>
