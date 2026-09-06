@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/dackota/resume-website/compare/v1.11.1...v1.12.0) (2026-09-06)
+
+
+### Features
+
+* **blog:** a golden path for agents ([#59](https://github.com/dackota/resume-website/issues/59)) ([d353be6](https://github.com/dackota/resume-website/commit/d353be66d37c825d64a3c0d9b42dae60d2afd88b))
+
 ## [1.11.1](https://github.com/dackota/resume-website/compare/v1.11.0...v1.11.1) (2026-08-27)
 
 
